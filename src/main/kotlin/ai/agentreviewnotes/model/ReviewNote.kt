@@ -46,6 +46,7 @@ data class NoteLocation(
     val startLine: Int,
     val endLine: Int,
     val branch: String? = null,
+    val target: String? = null,
 )
 
 object ReviewNoteBranch {

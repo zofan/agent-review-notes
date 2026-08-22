@@ -39,6 +39,7 @@ class ReviewNoteLineMarkerProvider : LineMarkerProvider {
         val notes = store.cachedList()
             .filter {
                 it.status == ReviewStatus.OPEN.wireValue &&
+                    it.location.target != "directory" &&
                     it.location.workspacePath == workspacePath &&
                     ReviewNoteBranch.isVisible(
                         noteBranch = it.location.branch,

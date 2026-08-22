@@ -4,6 +4,7 @@ import ai.agentreviewnotes.model.NoteAnchor
 import ai.agentreviewnotes.model.NoteLocation
 import ai.agentreviewnotes.model.ReviewNote
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ReviewNoteAdmissionTest {
@@ -97,6 +98,41 @@ class ReviewNoteAdmissionTest {
         assertFailsWith<IllegalArgumentException> {
             ReviewNoteAdmission.validate(note.copy(location = location))
         }
+    }
+
+    @Test
+    fun `заметка на каталог допускает пустой file snapshot и нулевой диапазон`() {
+        val base = validNote("services/api")
+        val note = base.copy(
+            location = base.location.copy(
+                target = "directory",
+                fileSha256 = "",
+                startOffset = 0,
+                endOffset = 0,
+                startLine = 0,
+                endLine = 0,
+            ),
+            anchor = NoteAnchor("", "", "", null),
+        )
+
+        assertEquals(note, ReviewNoteAdmission.validate(note))
+    }
+
+    @Test
+    fun `заметка на каталог отклоняет файловый anchor`() {
+        val base = validNote("services/api")
+        val note = base.copy(
+            location = base.location.copy(
+                target = "directory",
+                fileSha256 = "",
+                startOffset = 0,
+                endOffset = 0,
+                startLine = 0,
+                endLine = 0,
+            ),
+        )
+
+        assertFailsWith<IllegalArgumentException> { ReviewNoteAdmission.validate(note) }
     }
 
     private fun validNote(workspacePath: String): ReviewNote = ReviewNote(

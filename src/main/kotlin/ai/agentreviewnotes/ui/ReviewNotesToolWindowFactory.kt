@@ -13,10 +13,12 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
+import com.intellij.ide.projectView.ProjectView
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.util.concurrency.AppExecutorUtil
@@ -233,10 +235,23 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         if (!path.startsWith(projectRoot)) {
             return NavigationOutcome.Warning("Путь заметки выходит за пределы проекта")
         }
+        val realProjectRoot = runCatching { projectRoot.toRealPath() }.getOrNull()
+            ?: return NavigationOutcome.Warning("Корневой каталог проекта недоступен")
+        val realPath = runCatching { path.toRealPath(java.nio.file.LinkOption.NOFOLLOW_LINKS) }.getOrNull()
+            ?: return NavigationOutcome.Warning("Цель заметки больше не существует")
+        if (!realPath.startsWith(realProjectRoot)) {
+            return NavigationOutcome.Warning("Цель заметки выходит за реальные пределы проекта")
+        }
         val file = LocalFileSystem.getInstance().findFileByNioFile(path)
             ?: return NavigationOutcome.Warning("Файл заметки больше не существует")
         if (!ProjectFileIndex.getInstance(project).isInContent(file)) {
             return NavigationOutcome.Warning("Файл заметки не входит в content roots проекта")
+        }
+        if (note.location.target == "directory") {
+            if (!file.isDirectory || file.`is`(VFileProperty.SYMLINK)) {
+                return NavigationOutcome.Warning("Каталог заметки больше не существует или небезопасен")
+            }
+            return NavigationOutcome.Directory(file)
         }
         val document = FileDocumentManager.getInstance().getDocument(file)
             ?: return NavigationOutcome.Warning("Файл заметки нельзя открыть как текст")
@@ -249,6 +264,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private fun applyNavigation(note: ReviewNote, outcome: NavigationOutcome) {
         when (outcome) {
             is NavigationOutcome.Resolved -> OpenFileDescriptor(project, outcome.file, outcome.offset).navigate(true)
+            is NavigationOutcome.Directory -> ProjectView.getInstance(project).select(null, outcome.file, true)
             is NavigationOutcome.NeedsReanchor -> {
                 store.setStatusAsync(note.id, ReviewStatus.NEEDS_REANCHOR)
                 Messages.showWarningDialog(project, outcome.reason, "Нужна ручная привязка")
@@ -297,7 +313,12 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             if (component is JLabel && value is ReviewNote) {
                 val symbol = value.anchor.symbol?.let { " · $it" }.orEmpty()
                 val branch = value.location.branch?.let { " · $it" }.orEmpty()
-                component.text = "${value.kind.uppercase()} · ${value.status}$branch · ${value.location.workspacePath}:${value.location.startLine}$symbol — ${value.message}"
+                val location = if (value.location.target == "directory") {
+                    "${value.location.workspacePath}/"
+                } else {
+                    "${value.location.workspacePath}:${value.location.startLine}"
+                }
+                component.text = "${value.kind.uppercase()} · ${value.status}$branch · $location$symbol — ${value.message}"
                 component.toolTipText = value.message
             }
             return component
@@ -306,6 +327,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private sealed interface NavigationOutcome {
         data class Resolved(val file: com.intellij.openapi.vfs.VirtualFile, val offset: Int) : NavigationOutcome
+        data class Directory(val file: com.intellij.openapi.vfs.VirtualFile) : NavigationOutcome
         data class NeedsReanchor(val reason: String) : NavigationOutcome
         data class Warning(val message: String) : NavigationOutcome
     }

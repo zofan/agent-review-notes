@@ -33,17 +33,28 @@ internal object ReviewNoteAdmission {
         require(kind in reviewKinds) { "Некорректный тип заметки" }
         require(status in reviewStatuses) { "Некорректный статус заметки" }
         require(message.isNotBlank()) { "Пустой текст заметки" }
-        require(fileSha256.matches(sha256)) { "Некорректный hash файла" }
-        require(location.startOffset >= 0 && location.endOffset >= location.startOffset) {
-            "Некорректный диапазон заметки"
-        }
-        require(location.startLine >= 1 && location.endLine >= location.startLine) {
-            "Некорректные строки заметки"
+        val isDirectory = location.target == "directory"
+        require(location.target == null || isDirectory) { "Некорректная цель заметки" }
+        if (isDirectory) {
+            require(fileSha256.isEmpty()) { "Для каталога не должно быть hash файла" }
+            require(location.startOffset == 0 && location.endOffset == 0) { "Для каталога не должно быть offsets" }
+            require(location.startLine == 0 && location.endLine == 0) { "Для каталога не должно быть строк" }
+            require(anchor.selection.isEmpty() && anchor.prefix.isEmpty() && anchor.suffix.isEmpty() && anchor.symbol == null) {
+                "Для каталога не должно быть файлового anchor"
+            }
+        } else {
+            require(fileSha256.matches(sha256)) { "Некорректный hash файла" }
+            require(location.startOffset >= 0 && location.endOffset >= location.startOffset) {
+                "Некорректный диапазон заметки"
+            }
+            require(location.startLine >= 1 && location.endLine >= location.startLine) {
+                "Некорректные строки заметки"
+            }
         }
         require(isSafeWorkspacePath(workspacePath)) {
             "Путь заметки выходит за пределы проекта"
         }
-        validateVcsLocation(location.vcsRoot, location.vcsPath, workspacePath)
+        validateVcsLocation(location.vcsRoot, location.vcsPath, workspacePath, isDirectory)
         location.branch?.let { branch ->
             require(branch.isNotBlank()) { "Пустая Git-ветка заметки" }
             require(location.vcsRoot != null) { "Для Git-ветки отсутствует vcsRoot" }
@@ -73,11 +84,16 @@ internal object ReviewNoteAdmission {
         return !path.isAbsolute && !path.startsWith("..") && canonical == value
     }
 
-    private fun validateVcsLocation(vcsRoot: String?, vcsPath: String?, workspacePath: String) {
+    private fun validateVcsLocation(
+        vcsRoot: String?,
+        vcsPath: String?,
+        workspacePath: String,
+        isDirectory: Boolean,
+    ) {
         if (vcsRoot == null && vcsPath == null) return
         require(vcsRoot != null && vcsPath != null) { "Неполная Git-location заметки" }
         require(vcsRoot.isEmpty() || isSafeWorkspacePath(vcsRoot)) { "Некорректный vcsRoot заметки" }
-        require(isSafeWorkspacePath(vcsPath)) { "Некорректный vcsPath заметки" }
+        require(isSafeWorkspacePath(vcsPath) || isDirectory && vcsPath.isEmpty()) { "Некорректный vcsPath заметки" }
         val reconstructed = runCatching {
             Path.of(vcsRoot).resolve(vcsPath).normalize().toString()
                 .replace(java.io.File.separatorChar, '/')

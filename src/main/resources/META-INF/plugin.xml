@@ -19,6 +19,12 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt R"/>
         </action>
+        <action id="AgentReviewNotes.AddDirectoryNote"
+                class="ai.agentreviewnotes.action.AddDirectoryReviewNoteAction"
+                text="Добавить замечание на каталог"
+                description="Создать локальное замечание на выбранный каталог">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
+        </action>
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">
