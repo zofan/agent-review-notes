@@ -21,8 +21,9 @@ class ReviewNoteHighlightRangeTest {
     }
 
     @Test
-    fun `empty and invalid documents do not produce highlight`() {
-        assertNull(ReviewNoteHighlightRange.resolve(0, 0, 0))
+    fun `empty document produces a zero-length logical highlight target`() {
+        assertEquals(ReviewNoteHighlightRange(0, 0), ReviewNoteHighlightRange.resolve(0, 0, 0))
+        assertNull(ReviewNoteHighlightRange.resolve(0, 1, 0))
         assertNull(ReviewNoteHighlightRange.resolve(-1, 1, 20))
         assertNull(ReviewNoteHighlightRange.resolve(18, 3, 20))
     }

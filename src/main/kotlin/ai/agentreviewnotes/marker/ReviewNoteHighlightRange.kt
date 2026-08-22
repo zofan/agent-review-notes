@@ -3,7 +3,10 @@ package ai.agentreviewnotes.marker
 data class ReviewNoteHighlightRange(val startOffset: Int, val endOffset: Int) {
     companion object {
         fun resolve(offset: Int, selectionLength: Int, textLength: Int): ReviewNoteHighlightRange? {
-            if (textLength <= 0 || offset < 0 || offset > textLength || selectionLength < 0) return null
+            if (textLength < 0 || offset < 0 || offset > textLength || selectionLength < 0) return null
+            if (textLength == 0) {
+                return if (offset == 0 && selectionLength == 0) ReviewNoteHighlightRange(0, 0) else null
+            }
             if (selectionLength > 0) {
                 val endOffset = offset + selectionLength
                 if (endOffset > textLength) return null

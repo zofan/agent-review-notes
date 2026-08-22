@@ -19,7 +19,8 @@
             <li>замечания на выделенный код, позицию каретки, файл или каталог;</li>
             <li>точные anchors со snapshot, контекстом и Git revision;</li>
             <li>привязку к Git repository и branch в multi-root проектах;</li>
-            <li>просмотр в tool window, типизированные иконки в gutter и цветную подсветку диапазонов;</li>
+            <li>просмотр в tool window, типизированные иконки, цветную подсветку и текст заметки над anchor;</li>
+            <li>открытие деталей кликом по block inlay или хоткеем из строки caret и пересекающего selection;</li>
             <li>типы blocker, bug, feature, question и suggestion с фильтрацией и разной визуальной семантикой;</li>
             <li>изменение статуса, редактирование и удаление;</li>
             <li>безопасную перепривязку после изменения файла или явный статус needs_reanchor;</li>
@@ -51,6 +52,12 @@
                 description="Create a local review note for the selected directory">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </action>
+        <action id="AgentReviewNotes.OpenNoteAtCaret"
+                class="ai.agentreviewnotes.action.OpenReviewNoteAtCaretAction"
+                text="Open Review Note at Caret"
+                description="Open review note details for the current line or selection">
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift R"/>
+        </action>
         <action id="AgentReviewNotes.Help"
                 class="ai.agentreviewnotes.action.ReviewNotesHelpAction"
                 text="Agent Review Notes Help"
@@ -60,6 +67,7 @@
         <group id="AgentReviewNotes.KeymapGroup" text="Agent Review Notes" popup="false">
             <reference ref="AgentReviewNotes.AddNote"/>
             <reference ref="AgentReviewNotes.AddDirectoryNote"/>
+            <reference ref="AgentReviewNotes.OpenNoteAtCaret"/>
         </group>
     </actions>
 

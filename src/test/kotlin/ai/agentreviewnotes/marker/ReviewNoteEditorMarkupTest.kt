@@ -4,6 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertFalse
 
 class ReviewNoteEditorMarkupTest {
     @Test
@@ -19,6 +20,9 @@ class ReviewNoteEditorMarkupTest {
         assertContains(source, "HighlighterTargetArea.EXACT_RANGE")
         assertContains(source, "EffectType.ROUNDED_BOX")
         assertContains(source, "decoration.textAttributes")
-        assertContains(source, "gutterIconRenderer")
+        assertContains(source, "targetPointAtEndKey")
+        assertContains(source, "decoration.targetPointAtEnd")
+        assertContains(source, "includeEndPoint")
+        assertFalse(source.contains("gutterIconRenderer"))
     }
 }

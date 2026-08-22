@@ -17,5 +17,8 @@ class ReviewNoteShortcutMetadataTest {
         assertContains(descriptor, "text=\"Agent Review Notes\"")
         assertContains(descriptor, "reference ref=\"AgentReviewNotes.AddNote\"")
         assertContains(descriptor, "reference ref=\"AgentReviewNotes.AddDirectoryNote\"")
+        assertContains(descriptor, "id=\"AgentReviewNotes.OpenNoteAtCaret\"")
+        assertContains(descriptor, "first-keystroke=\"ctrl alt shift R\"")
+        assertContains(descriptor, "reference ref=\"AgentReviewNotes.OpenNoteAtCaret\"")
     }
 }

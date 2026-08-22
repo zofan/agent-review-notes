@@ -23,7 +23,7 @@ class ReviewNoteEditorHighlighterContractTest {
         assertFalse(descriptor.contains("<annotator language=\"ANY\""))
         assertContains(markup, "addRangeHighlighter")
         assertContains(markup, "HighlighterTargetArea.EXACT_RANGE")
-        assertContains(markup, "gutterIconRenderer")
+        assertFalse(markup.contains("gutterIconRenderer"))
         assertContains(lifecycle, "FileEditorManagerListener.FILE_EDITOR_MANAGER")
         assertContains(lifecycle, "addDocumentListener")
         assertContains(lifecycle, "highlighter.refreshAll()")

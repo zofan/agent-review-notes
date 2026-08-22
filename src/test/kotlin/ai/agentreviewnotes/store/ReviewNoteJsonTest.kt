@@ -8,6 +8,20 @@ import kotlin.test.assertFailsWith
 
 class ReviewNoteJsonTest {
     @Test
+    fun `все legacy kinds разрешены в schema v2`() {
+        listOf("blocker", "bug", "question", "suggestion").forEach { kind ->
+            val content = validJson()
+                .replace("agent.review.note.v1", "agent.review.note.v2")
+                .replace("\"kind\": \"bug\"", "\"kind\": \"$kind\"")
+
+            val decoded = ReviewNoteJson.decode(content, NOTE_ID)
+
+            assertEquals("agent.review.note.v2", decoded.schema)
+            assertEquals(kind, decoded.kind)
+        }
+    }
+
+    @Test
     fun `feature разрешён только в schema v2`() {
         val v1Feature = validJson().replace("\"kind\": \"bug\"", "\"kind\": \"feature\"")
         assertFailsWith<IllegalArgumentException> {

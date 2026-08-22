@@ -82,6 +82,17 @@ class ReviewNotesCliTest(unittest.TestCase):
         self.assertEqual(expect, completed.returncode, completed.stderr)
         return json.loads(completed.stdout)
 
+    def test_v2_accepts_every_legacy_kind(self) -> None:
+        legacy_kinds = ("blocker", "bug", "question", "suggestion")
+        for kind in legacy_kinds:
+            self.write_note(note("open", kind=kind, schema="agent.review.note.v2"))
+
+        result = self.run_cli("stats")
+
+        self.assertEqual(len(legacy_kinds), result["total"])
+        self.assertEqual({kind: 1 for kind in legacy_kinds}, result["by_kind"])
+        self.assertEqual(0, result["rejected_count"])
+
     def test_feature_kind_requires_v2_schema(self) -> None:
         accepted = note("open", kind="feature", schema="agent.review.note.v2")
         rejected = note("open", kind="feature")

@@ -260,7 +260,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private fun viewSelected() {
         val note = notes.selectedValue ?: return
-        ReviewNoteDetailsDialog(project, note).show()
+        project.service<ReviewNoteDetailsService>().show(note)
     }
 
     private fun editSelected() {

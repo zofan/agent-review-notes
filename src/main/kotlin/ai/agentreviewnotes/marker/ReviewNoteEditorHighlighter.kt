@@ -107,19 +107,28 @@ internal class ReviewNoteEditorHighlighter(private val project: Project) {
             ) ?: return@mapNotNull null
             val presentation = ReviewNotePresentations.forWireValue(note.kind)
             ReviewNoteEditorDecoration(
-                range,
-                ReviewNoteEditorMarkup.textAttributes(presentation),
-                ReviewNoteGutterIconRenderer(project, note),
+                range = range,
+                textAttributes = ReviewNoteEditorMarkup.textAttributes(presentation),
+                targetPointAtEnd = ReviewNoteEditorLogicalTarget.pointAtEnd(
+                    anchorOffset = resolved.offset,
+                    selectionLength = note.anchor.selection.length,
+                    visualRange = range,
+                ),
+                noteId = note.id,
+                priority = presentation.priority,
+                blockInlayRenderer = ReviewNoteBlockInlayRenderer(project, note, presentation),
             )
         }
 
         runOnEdt {
             if (!generations.isCurrent(key, generation, capturedEpoch) || document.modificationStamp != capturedStamp) return@runOnEdt
-            editors.filterNot(Editor::isDisposed).forEach { editor ->
+            val appliedInlays = editors.filterNot(Editor::isDisposed).sumOf { editor ->
                 ReviewNoteEditorMarkup.replace(editor, decorations)
             }
             if (decorations.isNotEmpty()) {
-                log.info("Applied ${decorations.size} review note editor decoration(s) to ${file.path}")
+                log.info(
+                    "Applied ${decorations.size} review note editor decoration(s) and $appliedInlays note block inlay(s) to ${file.path}",
+                )
             }
         }
     }
