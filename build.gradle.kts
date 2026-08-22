@@ -43,6 +43,12 @@ intellijPlatform {
 }
 
 tasks {
+    processResources {
+        from("skills/agent-review-notes/SKILL.md") {
+            into("agent-review-notes/skills/agent-review-notes")
+        }
+    }
+
     test {
         useJUnitPlatform()
     }

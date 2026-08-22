@@ -8,6 +8,9 @@ import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewNoteKindFilter
 import ai.agentreviewnotes.model.ReviewStatus
+import ai.agentreviewnotes.skill.AgentSkillInstallStatus
+import ai.agentreviewnotes.skill.AgentSkillInstaller
+import ai.agentreviewnotes.skill.BundledReviewSkill
 import ai.agentreviewnotes.store.ReviewNoteStore
 import ai.agentreviewnotes.store.ReviewNotePathPolicy
 import ai.agentreviewnotes.store.ReviewNoteTargetBoundary
@@ -114,6 +117,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private lateinit var deleteButton: JButton
     private lateinit var resolveButton: JButton
     private lateinit var reopenButton: JButton
+    private lateinit var installSkillButton: JButton
 
     private fun createToolbar(): JPanel {
         viewButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Preview, "View note", ::viewSelected)
@@ -126,6 +130,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         reopenButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Rollback, "Reopen note") {
             setSelectedStatus(ReviewStatus.OPEN)
         }
+        installSkillButton = AgentSkillInstallButtonFactory.create(::installSkill)
         fromDate.isEnabled = false
         toDate.isEnabled = false
         fromDate.accessibleContext.accessibleName = "Start date"
@@ -160,6 +165,56 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             add(deleteButton)
             add(resolveButton)
             add(reopenButton)
+            add(installSkillButton)
+        }
+    }
+
+    private fun installSkill() {
+        val basePath = project.basePath
+        if (basePath == null) {
+            Messages.showWarningDialog(project, "The project has no local directory", "Agent Review Notes")
+            return
+        }
+        installSkillButton.isEnabled = false
+        java.util.concurrent.CompletableFuture.supplyAsync(
+            {
+                AgentSkillInstaller.install(Path.of(basePath), BundledReviewSkill.content())
+            },
+            AppExecutorUtil.getAppExecutorService(),
+        ).whenComplete { result, error ->
+            ApplicationManager.getApplication().invokeLater {
+                if (isUnavailable()) return@invokeLater
+                installSkillButton.isEnabled = true
+                if (error != null) {
+                    val cause = (error as? CompletionException)?.cause ?: error
+                    Messages.showErrorDialog(
+                        project,
+                        cause.message ?: "Failed to install the Agent Review Notes skill",
+                        "Agent Review Notes",
+                    )
+                    return@invokeLater
+                }
+                val target = runCatching {
+                    Path.of(basePath).toRealPath().relativize(result.target).toString()
+                }.getOrDefault(result.target.toString())
+                when (result.status) {
+                    AgentSkillInstallStatus.INSTALLED -> Messages.showInfoMessage(
+                        project,
+                        "Agent Review Notes skill installed at $target",
+                        "Agent Review Notes",
+                    )
+                    AgentSkillInstallStatus.ALREADY_INSTALLED -> Messages.showInfoMessage(
+                        project,
+                        "Agent Review Notes skill is already installed at $target",
+                        "Agent Review Notes",
+                    )
+                    AgentSkillInstallStatus.CONFLICT -> Messages.showWarningDialog(
+                        project,
+                        "A different skill already exists at $target. It was not overwritten.",
+                        "Agent Review Notes",
+                    )
+                }
+            }
         }
     }
 
