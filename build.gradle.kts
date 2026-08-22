@@ -44,7 +44,8 @@ intellijPlatform {
 
 tasks {
     processResources {
-        from("skills/agent-review-notes/SKILL.md") {
+        from("skills/agent-review-notes") {
+            include("SKILL.md", "scripts/**")
             into("agent-review-notes/skills/agent-review-notes")
         }
     }

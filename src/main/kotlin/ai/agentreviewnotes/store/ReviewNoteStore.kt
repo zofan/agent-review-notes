@@ -77,9 +77,11 @@ class ReviewNoteStore(private val project: Project) {
 
     fun deleteAsync(id: String): CompletableFuture<Void> = mutateAsync {
         val directory = requireNotNull(notesDirectory(create = false)) { "Каталог заметок не существует" }
-        val target = notePath(directory, id)
-        val leftover = atomicDelete.delete(target)
-        if (leftover != null) log.warn("Заметка удалена, но карантин не очищен: $leftover")
+        ReviewNoteFileLock.withLock(directory, id) {
+            val target = notePath(directory, id)
+            val leftover = atomicDelete.delete(target)
+            if (leftover != null) log.warn("Заметка удалена, но карантин не очищен: $leftover")
+        }
     }
 
     fun addListener(parent: Disposable, listener: () -> Unit) {
@@ -118,8 +120,10 @@ class ReviewNoteStore(private val project: Project) {
     private fun writeNew(note: ReviewNote) {
         val content = ReviewNoteJson.encode(note)
         val directory = requireNotNull(notesDirectory(create = true))
-        writeTemporary(directory, note.id, content).useAsTemporary { temporary ->
-            atomicReplace.replace(temporary, notePath(directory, note.id))
+        ReviewNoteFileLock.withLock(directory, note.id) {
+            writeTemporary(directory, note.id, content).useAsTemporary { temporary ->
+                atomicReplace.replace(temporary, notePath(directory, note.id))
+            }
         }
     }
 
@@ -131,19 +135,23 @@ class ReviewNoteStore(private val project: Project) {
         val directory = requireNotNull(notesDirectory(create = false)) { "Каталог заметок не существует" }
         val target = notePath(directory, id)
         require(Files.isRegularFile(target, NOFOLLOW_LINKS)) { "Заметка $id не существует или небезопасна" }
-        repeat(MAX_STATUS_RETRIES) {
-            val original = BoundedFileReader.readBytes(target)
-            val content = transform(BoundedFileReader.decodeUtf8(original))
-            val temporary = writeTemporary(directory, id, content)
-            try {
-                val latest = BoundedFileReader.readBytes(target)
-                if (!latest.contentEquals(original)) return@repeat
-                atomicReplace.replace(temporary, target)
-                return
-            } finally {
-                Files.deleteIfExists(temporary)
+        val replaced = ReviewNoteFileLock.withLock(directory, id) {
+            repeat(MAX_STATUS_RETRIES) {
+                val original = BoundedFileReader.readBytes(target)
+                val content = transform(BoundedFileReader.decodeUtf8(original))
+                val temporary = writeTemporary(directory, id, content)
+                try {
+                    val latest = BoundedFileReader.readBytes(target)
+                    if (!latest.contentEquals(original)) return@repeat
+                    atomicReplace.replace(temporary, target)
+                    return@withLock true
+                } finally {
+                    Files.deleteIfExists(temporary)
+                }
             }
+            false
         }
+        if (replaced) return
         throw ConcurrentModificationException("Заметка $id одновременно изменяется внешним процессом")
     }
 

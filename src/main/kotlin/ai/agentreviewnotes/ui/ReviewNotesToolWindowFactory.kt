@@ -163,7 +163,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         installSkillButton.isEnabled = false
         java.util.concurrent.CompletableFuture.supplyAsync(
             {
-                AgentSkillInstaller.install(Path.of(basePath), BundledReviewSkill.content())
+                AgentSkillInstaller.install(Path.of(basePath), BundledReviewSkill.files())
             },
             AppExecutorUtil.getAppExecutorService(),
         ).whenComplete { result, error ->
