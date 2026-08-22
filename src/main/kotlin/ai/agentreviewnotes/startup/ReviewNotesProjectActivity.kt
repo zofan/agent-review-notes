@@ -16,13 +16,13 @@ import git4idea.repo.GitRepositoryChangeListener
 class ReviewNotesProjectActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
         val store = project.service<ReviewNoteStore>()
-        store.addListener(project) { refreshProjectView(project) }
-        refreshAndRestart(project, store)
+        store.addListener(project) { refreshPresentations(project) }
+        refreshStore(store)
         val connection = project.messageBus.connect(project)
         connection.subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
             override fun after(events: List<VFileEvent>) {
                 if (events.any(::isReviewNoteEvent)) {
-                    refreshAndRestart(project, store)
+                    refreshStore(store)
                 }
             }
         })
@@ -34,10 +34,13 @@ class ReviewNotesProjectActivity : ProjectActivity {
         )
     }
 
-    private fun refreshAndRestart(project: Project, store: ReviewNoteStore) {
-        store.refreshAsync().thenRun {
-            restartDaemon(project, CACHE_RESTART_REASON)
-        }
+    private fun refreshStore(store: ReviewNoteStore) {
+        store.refreshAsync()
+    }
+
+    private fun refreshPresentations(project: Project) {
+        refreshProjectView(project)
+        restartDaemon(project, CACHE_RESTART_REASON)
     }
 
     private fun refreshProjectView(project: Project) {
