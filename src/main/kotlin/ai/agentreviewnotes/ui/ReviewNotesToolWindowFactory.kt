@@ -108,6 +108,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         refresh()
     }
 
+    private lateinit var viewButton: JButton
     private lateinit var navigateButton: JButton
     private lateinit var editButton: JButton
     private lateinit var deleteButton: JButton
@@ -115,7 +116,8 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private lateinit var reopenButton: JButton
 
     private fun createToolbar(): JPanel {
-        navigateButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Preview, "Перейти к заметке", ::navigateToSelected)
+        viewButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Preview, "Просмотреть заметку", ::viewSelected)
+        navigateButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Forward, "Перейти к заметке", ::navigateToSelected)
         editButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Edit, "Изменить заметку", ::editSelected)
         deleteButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.DeleteTag, "Удалить заметку", ::deleteSelected)
         resolveButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Checked, "Отметить решённой") {
@@ -152,6 +154,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             add(fromDate)
             add(toEnabled)
             add(toDate)
+            add(viewButton)
             add(navigateButton)
             add(editButton)
             add(deleteButton)
@@ -227,11 +230,17 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private fun updateButtons() {
         val selected = notes.selectedValue
+        viewButton.isEnabled = selected != null
         navigateButton.isEnabled = selected != null
         editButton.isEnabled = selected != null
         deleteButton.isEnabled = selected != null
         resolveButton.isEnabled = selected != null && selected.status != ReviewStatus.RESOLVED.wireValue
         reopenButton.isEnabled = selected != null && selected.status != ReviewStatus.OPEN.wireValue
+    }
+
+    private fun viewSelected() {
+        val note = notes.selectedValue ?: return
+        ReviewNoteDetailsDialog(project, note).show()
     }
 
     private fun editSelected() {
