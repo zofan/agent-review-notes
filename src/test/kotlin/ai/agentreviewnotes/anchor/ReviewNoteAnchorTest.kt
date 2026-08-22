@@ -59,6 +59,71 @@ class ReviewNoteAnchorTest {
         assertEquals("Выделенный фрагмент больше не найден", result.reason)
     }
 
+    @Test
+    fun `точный hash не принимает несовместимый сохраненный диапазон`() {
+        val text = "alpha\nbeta\ngamma"
+        val note = note(text, selection = "beta", offset = 6).copy(
+            location = note(text, selection = "beta", offset = 6).location.copy(endOffset = 9),
+        )
+
+        assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(note, text))
+    }
+
+    @Test
+    fun `контекстуальный матч не считается уникальным если есть 129 совпадений`() {
+        val original = "left beta right"
+        val note = note(original, selection = "beta", offset = 5, prefix = "left ", suffix = " right")
+        val current = buildList {
+            add(original)
+            repeat(127) { add("other beta other") }
+            add(original)
+        }.joinToString("\n")
+
+        assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(note, current))
+    }
+
+    @Test
+    fun `перекрывающиеся совпадения считаются неоднозначными`() {
+        val note = note("xaa", selection = "aa", offset = 1)
+
+        assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(note, "aaa"))
+    }
+
+    @Test
+    fun `лимит учитывает перекрывающиеся совпадения`() {
+        val note = note("xaa", selection = "aa", offset = 1)
+
+        assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(note, "a".repeat(130)))
+    }
+
+    @Test
+    fun `точный snapshot принимает валидное пустое выделение`() {
+        val text = "alpha"
+        val result = ReviewNoteAnchor.resolve(note(text, selection = "", offset = 2), text)
+
+        assertEquals(2, assertIs<AnchorResult.Resolved>(result).offset)
+    }
+
+    @Test
+    fun `точный snapshot отвергает несовпадающий selection`() {
+        val text = "alpha\nbeta\ngamma"
+        val valid = note(text, selection = "beta", offset = 6)
+        val corrupted = valid.copy(anchor = valid.anchor.copy(selection = "zeta"))
+
+        assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(corrupted, text))
+    }
+
+    @Test
+    fun `точный snapshot отвергает отрицательные и экстремальные offsets`() {
+        val text = "alpha\nbeta\ngamma"
+        val valid = note(text, selection = "beta", offset = 6)
+        val negative = valid.copy(location = valid.location.copy(startOffset = -1, endOffset = 3))
+        val extreme = valid.copy(location = valid.location.copy(startOffset = Int.MAX_VALUE, endOffset = Int.MAX_VALUE))
+
+        assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(negative, text))
+        assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(extreme, text))
+    }
+
     private fun note(
         text: String,
         selection: String,

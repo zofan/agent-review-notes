@@ -16,7 +16,7 @@ object ReviewNoteAnchor {
 
     fun resolve(note: ReviewNote, currentText: String, currentSha256: String): AnchorResult {
         if (currentSha256 == note.location.fileSha256) {
-            return offsetInBounds(note.location.startOffset, currentText.length)
+            return exactSnapshot(note, currentText)
         }
 
         val selection = note.anchor.selection
@@ -24,7 +24,10 @@ object ReviewNoteAnchor {
             return AnchorResult.Unresolved("Исходная строка изменилась, а точного выделения нет")
         }
 
-        val occurrences = occurrenceOffsets(currentText, selection, MAX_OCCURRENCES)
+        val occurrences = occurrenceOffsets(currentText, selection, MAX_OCCURRENCES + 1)
+        if (occurrences.size > MAX_OCCURRENCES) {
+            return AnchorResult.Unresolved("Выделенный фрагмент встречается слишком много раз")
+        }
         val contextual = occurrences.filter { offset -> contextMatches(note, currentText, offset) }
         if (contextual.size == 1) return AnchorResult.Resolved(contextual.first())
 
@@ -59,14 +62,22 @@ object ReviewNoteAnchor {
             val offset = text.indexOf(selection, start)
             if (offset < 0) break
             offsets.add(offset)
-            start = offset + selection.length
+            start = offset + 1
         }
         return offsets
     }
 
-    private fun offsetInBounds(offset: Int, textLength: Int): AnchorResult {
-        if (offset in 0..textLength) return AnchorResult.Resolved(offset)
-        return AnchorResult.Unresolved("Сохранённая позиция находится за пределами файла")
+    private fun exactSnapshot(note: ReviewNote, text: String): AnchorResult {
+        val start = note.location.startOffset
+        val end = note.location.endOffset
+        val selection = note.anchor.selection
+        if (start < 0 || end < start || end > text.length || end - start != selection.length) {
+            return AnchorResult.Unresolved("Сохранённый диапазон не соответствует snapshot файла")
+        }
+        if (!text.regionMatches(start, selection, 0, selection.length)) {
+            return AnchorResult.Unresolved("Сохранённый фрагмент не соответствует snapshot файла")
+        }
+        return AnchorResult.Resolved(start)
     }
 
     private const val MAX_OCCURRENCES = 128

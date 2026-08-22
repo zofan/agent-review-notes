@@ -6,6 +6,7 @@ import ai.agentreviewnotes.model.NoteLocation
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
+import ai.agentreviewnotes.store.ReviewNoteTargetBoundary
 import ai.agentreviewnotes.ui.ReviewNoteDialog
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.application.ApplicationManager
@@ -19,6 +20,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiNamedElement
@@ -41,6 +43,7 @@ class AddReviewNoteAction : AnAction() {
             project != null &&
                 editor != null &&
                 file?.isInLocalFileSystem == true &&
+                !file.`is`(VFileProperty.SYMLINK) &&
                 ProjectFileIndex.getInstance(project).isInContent(file)
     }
 
@@ -48,6 +51,7 @@ class AddReviewNoteAction : AnAction() {
         val project = event.project ?: return
         val editor = event.getData(CommonDataKeys.EDITOR) ?: return
         val file = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
+        if (file.`is`(VFileProperty.SYMLINK)) return
         val dialog = ReviewNoteDialog(project)
         if (!dialog.showAndGet()) return
 
@@ -93,11 +97,21 @@ class AddReviewNoteAction : AnAction() {
         message: String,
     ): ReviewNote {
         val text = document.text
-        val projectRoot = Path.of(requireNotNull(project.basePath)).normalize()
-        val file = Path.of(filePath).normalize()
+        val projectRoot = Path.of(requireNotNull(project.basePath)).toRealPath()
+        val sourcePath = Path.of(filePath)
+        val file = ReviewNoteTargetBoundary.resolve(projectRoot, sourcePath)
         val virtualFile = com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByPath(filePath)
         val repository = virtualFile?.let { GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(it) }
-        val vcsRootPath = repository?.root?.path?.let(Path::of)?.normalize()
+        val repositoryRoot = repository?.root?.path?.let(Path::of)?.let { path ->
+            runCatching { path.toRealPath() }.getOrNull()
+        }
+        val git = ReviewNoteGitLocationResolver.resolve(
+            projectRoot = projectRoot,
+            target = file,
+            repositoryRoot = repositoryRoot,
+            head = repository?.currentRevision,
+            branch = repository?.currentBranchName,
+        )
         val selection = text.substring(range.startOffset, range.endOffset)
         val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(document)
         val symbol = psiFile?.findElementAt(range.startOffset.coerceAtMost((text.length - 1).coerceAtLeast(0)))
@@ -108,15 +122,15 @@ class AddReviewNoteAction : AnAction() {
 
         val location = NoteLocation(
             workspacePath = relativePath(projectRoot, file),
-            vcsRoot = vcsRootPath?.let { relativePath(projectRoot, it) },
-            vcsPath = vcsRootPath?.let { relativePath(it, file) },
-            head = repository?.currentRevision,
+            vcsRoot = git.vcsRoot,
+            vcsPath = git.vcsPath,
+            head = git.head,
             fileSha256 = ReviewNoteAnchor.sha256(text),
             startOffset = range.startOffset,
             endOffset = range.endOffset,
             startLine = document.getLineNumber(range.startOffset) + 1,
             endLine = document.getLineNumber(lastSelectedOffset(range, text.length)) + 1,
-            branch = repository?.currentBranchName,
+            branch = git.branch,
         )
         val anchor = NoteAnchor(
             selection = selection,

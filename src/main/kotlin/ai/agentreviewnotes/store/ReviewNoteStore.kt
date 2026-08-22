@@ -9,11 +9,9 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.util.concurrency.AppExecutorUtil
-import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.util.ConcurrentModificationException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -30,6 +28,7 @@ class ReviewNoteStore(private val project: Project) {
     private val pendingStatuses = ConcurrentHashMap.newKeySet<String>()
     private val executor = AppExecutorUtil.getAppExecutorService()
     private val atomicDelete = AtomicReviewNoteDelete()
+    private val atomicReplace = AtomicReviewNoteReplace()
 
     @Volatile
     private var snapshot: List<ReviewNote> = emptyList()
@@ -120,7 +119,7 @@ class ReviewNoteStore(private val project: Project) {
         val content = ReviewNoteJson.encode(note)
         val directory = requireNotNull(notesDirectory(create = true))
         writeTemporary(directory, note.id, content).useAsTemporary { temporary ->
-            moveAtomically(temporary, notePath(directory, note.id))
+            atomicReplace.replace(temporary, notePath(directory, note.id))
         }
     }
 
@@ -139,7 +138,7 @@ class ReviewNoteStore(private val project: Project) {
             try {
                 val latest = BoundedFileReader.readBytes(target)
                 if (!latest.contentEquals(original)) return@repeat
-                moveAtomically(temporary, target)
+                atomicReplace.replace(temporary, target)
                 return
             } finally {
                 Files.deleteIfExists(temporary)
@@ -164,19 +163,6 @@ class ReviewNoteStore(private val project: Project) {
         val temporary = Files.createTempFile(directory, id, ".tmp")
         Files.writeString(temporary, content, Charsets.UTF_8)
         return temporary
-    }
-
-    private fun moveAtomically(source: Path, target: Path) {
-        try {
-            Files.move(
-                source,
-                target,
-                StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING,
-            )
-        } catch (_: AtomicMoveNotSupportedException) {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING)
-        }
     }
 
     private fun notePath(directory: Path, id: String): Path {

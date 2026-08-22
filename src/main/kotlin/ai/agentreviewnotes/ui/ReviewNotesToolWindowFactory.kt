@@ -8,6 +8,8 @@ import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewNoteKindFilter
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
+import ai.agentreviewnotes.store.ReviewNotePathPolicy
+import ai.agentreviewnotes.store.ReviewNoteTargetBoundary
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -151,17 +153,15 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         val branch = note.location.branch ?: return true
         val vcsRoot = note.location.vcsRoot ?: return false
         val basePath = project.basePath ?: return false
-        val projectRoot = Path.of(basePath).normalize()
-        val expectedRoot = runCatching { projectRoot.resolve(vcsRoot).normalize() }.getOrNull() ?: return false
+        val projectRoot = LocalFileSystem.getInstance().findFileByPath(basePath)?.canonicalPath?.let(Path::of)
+            ?: return false
+        val expectedRoot = projectRoot.resolve(vcsRoot).normalize()
         if (!expectedRoot.startsWith(projectRoot)) return false
         val repository = GitRepositoryManager.getInstance(project).repositories.firstOrNull { candidate ->
-            Path.of(candidate.root.path).normalize() == expectedRoot
+            candidate.root.canonicalPath?.let(Path::of)?.normalize() == expectedRoot
         }
-        val currentVcsRoot = repository?.root?.path?.let { rootPath ->
-            runCatching { projectRoot.relativize(Path.of(rootPath).normalize()) }
-                .getOrNull()
-                ?.toString()
-                ?.replace(java.io.File.separatorChar, '/')
+        val currentVcsRoot = repository?.root?.canonicalPath?.let { rootPath ->
+            ReviewNotePathPolicy.relativeCanonical(projectRoot, Path.of(rootPath))
         }
         return ReviewNoteBranch.isVisible(
             noteBranch = branch,
@@ -235,15 +235,13 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         if (!path.startsWith(projectRoot)) {
             return NavigationOutcome.Warning("Путь заметки выходит за пределы проекта")
         }
-        val realProjectRoot = runCatching { projectRoot.toRealPath() }.getOrNull()
-            ?: return NavigationOutcome.Warning("Корневой каталог проекта недоступен")
-        val realPath = runCatching { path.toRealPath(java.nio.file.LinkOption.NOFOLLOW_LINKS) }.getOrNull()
+        val realPath = runCatching { ReviewNoteTargetBoundary.resolve(projectRoot, path) }.getOrNull()
             ?: return NavigationOutcome.Warning("Цель заметки больше не существует")
-        if (!realPath.startsWith(realProjectRoot)) {
-            return NavigationOutcome.Warning("Цель заметки выходит за реальные пределы проекта")
-        }
-        val file = LocalFileSystem.getInstance().findFileByNioFile(path)
+        val file = LocalFileSystem.getInstance().findFileByNioFile(realPath)
             ?: return NavigationOutcome.Warning("Файл заметки больше не существует")
+        if (file.`is`(VFileProperty.SYMLINK)) {
+            return NavigationOutcome.Warning("Символьная ссылка не может быть целью заметки")
+        }
         if (!ProjectFileIndex.getInstance(project).isInContent(file)) {
             return NavigationOutcome.Warning("Файл заметки не входит в content roots проекта")
         }

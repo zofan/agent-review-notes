@@ -5,11 +5,13 @@ import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 import ai.agentreviewnotes.model.ReviewNoteBranch
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
+import ai.agentreviewnotes.store.ReviewNotePathPolicy
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProvider
 import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.service
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
 import git4idea.repo.GitRepositoryManager
 
@@ -20,21 +22,17 @@ class ReviewNoteLineMarkerProvider : LineMarkerProvider {
         val first = elements.firstOrNull() ?: return
         val project = first.project
         val psiFile = first.containingFile ?: return
-        val basePath = project.basePath ?: return
         val virtualFile = psiFile.virtualFile ?: return
-        val filePath = virtualFile.path
-        val projectRoot = java.nio.file.Path.of(basePath).normalize()
+        val filePath = virtualFile.canonicalPath ?: return
+        val basePath = project.basePath ?: return
+        val projectRoot = LocalFileSystem.getInstance().findFileByPath(basePath)?.canonicalPath
+            ?.let(java.nio.file.Path::of) ?: return
         val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(virtualFile)
         val currentBranch = repository?.currentBranchName
-        val currentVcsRoot = repository?.root?.path?.let { rootPath ->
-            runCatching { projectRoot.relativize(java.nio.file.Path.of(rootPath).normalize()) }
-                .getOrNull()
-                ?.toString()
-                ?.replace(java.io.File.separatorChar, '/')
+        val currentVcsRoot = repository?.root?.canonicalPath?.let { rootPath ->
+            ReviewNotePathPolicy.relativeCanonical(projectRoot, java.nio.file.Path.of(rootPath))
         }
-        val workspacePath = projectRoot.relativize(java.nio.file.Path.of(filePath).normalize())
-            .toString()
-            .replace(java.io.File.separatorChar, '/')
+        val workspacePath = ReviewNotePathPolicy.relativeCanonical(projectRoot, java.nio.file.Path.of(filePath)) ?: return
         val store = project.service<ReviewNoteStore>()
         val notes = store.cachedList()
             .filter {

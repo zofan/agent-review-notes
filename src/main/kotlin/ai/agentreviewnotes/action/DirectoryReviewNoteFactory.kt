@@ -5,34 +5,8 @@ import ai.agentreviewnotes.model.NoteLocation
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
-import java.nio.file.Path
-
-internal data class DirectoryGitLocation(
-    val vcsRoot: String?,
-    val vcsPath: String?,
-    val head: String?,
-    val branch: String?,
-)
 
 internal object DirectoryReviewNoteFactory {
-    fun gitLocation(
-        projectRoot: Path,
-        directory: Path,
-        repositoryRoot: Path?,
-        head: String?,
-        branch: String?,
-    ): DirectoryGitLocation {
-        if (repositoryRoot == null || !repositoryRoot.startsWith(projectRoot) || !directory.startsWith(repositoryRoot)) {
-            return DirectoryGitLocation(null, null, null, null)
-        }
-        return DirectoryGitLocation(
-            vcsRoot = relativePath(projectRoot, repositoryRoot),
-            vcsPath = relativePath(repositoryRoot, directory),
-            head = head,
-            branch = branch,
-        )
-    }
-
     fun create(
         workspacePath: String,
         vcsRoot: String?,
@@ -64,7 +38,4 @@ internal object DirectoryReviewNoteFactory {
         anchor = NoteAnchor("", "", "", null),
         createdAt = createdAt,
     )
-
-    private fun relativePath(root: Path, child: Path): String =
-        root.relativize(child).toString().replace(java.io.File.separatorChar, '/')
 }

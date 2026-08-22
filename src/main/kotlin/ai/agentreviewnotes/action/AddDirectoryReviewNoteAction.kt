@@ -1,6 +1,7 @@
 package ai.agentreviewnotes.action
 
 import ai.agentreviewnotes.store.ReviewNoteStore
+import ai.agentreviewnotes.store.ReviewNoteTargetBoundary
 import ai.agentreviewnotes.ui.ReviewNoteDialog
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -14,7 +15,6 @@ import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.util.concurrency.AppExecutorUtil
 import git4idea.repo.GitRepositoryManager
-import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.time.Instant
 import java.util.UUID
@@ -47,8 +47,8 @@ class AddDirectoryReviewNoteAction : AnAction() {
         CompletableFuture.supplyAsync(
             {
                 val projectRoot = Path.of(requireNotNull(project.basePath)).toRealPath()
-                val directoryPath = Path.of(directory.path).toRealPath(NOFOLLOW_LINKS)
-                require(directoryPath.startsWith(projectRoot) && directoryPath != projectRoot) {
+                val directoryPath = ReviewNoteTargetBoundary.resolve(projectRoot, Path.of(directory.path))
+                require(directoryPath != projectRoot) {
                     "Каталог выходит за пределы проекта или является корнем проекта"
                 }
                 require(!directory.`is`(VFileProperty.SYMLINK)) { "Символьная ссылка не может быть целью заметки" }
@@ -56,9 +56,9 @@ class AddDirectoryReviewNoteAction : AnAction() {
                 val repositoryRoot = repository?.root?.path?.let(Path::of)?.let { path ->
                     runCatching { path.toRealPath() }.getOrNull()
                 }
-                val git = DirectoryReviewNoteFactory.gitLocation(
+                val git = ReviewNoteGitLocationResolver.resolve(
                     projectRoot = projectRoot,
-                    directory = directoryPath,
+                    target = directoryPath,
                     repositoryRoot = repositoryRoot,
                     head = repository?.currentRevision,
                     branch = repository?.currentBranchName,

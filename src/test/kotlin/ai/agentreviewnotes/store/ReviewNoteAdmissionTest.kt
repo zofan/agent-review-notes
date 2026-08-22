@@ -135,6 +135,16 @@ class ReviewNoteAdmissionTest {
         assertFailsWith<IllegalArgumentException> { ReviewNoteAdmission.validate(note) }
     }
 
+    @Test
+    fun `точка не является каноническим путем`() {
+        val valid = validNote("src/main.go")
+        val workspaceDot = valid.copy(location = valid.location.copy(workspacePath = "."))
+        val vcsRootDot = valid.copy(location = valid.location.copy(vcsRoot = "."))
+
+        assertFailsWith<IllegalArgumentException> { ReviewNoteAdmission.validate(workspaceDot) }
+        assertFailsWith<IllegalArgumentException> { ReviewNoteAdmission.validate(vcsRootDot) }
+    }
+
     private fun validNote(workspacePath: String): ReviewNote = ReviewNote(
         id = "123e4567-e89b-42d3-a456-426614174000",
         status = "open",

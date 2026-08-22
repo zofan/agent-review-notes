@@ -29,14 +29,40 @@ class DirectoryReviewNoteFactoryTest {
 
     @Test
     fun `Git metadata опускается если repository root выше project root`() {
-        val location = DirectoryReviewNoteFactory.gitLocation(
+        val location = ReviewNoteGitLocationResolver.resolve(
             projectRoot = Path.of("/repo/project"),
-            directory = Path.of("/repo/project/services/api"),
+            target = Path.of("/repo/project/services/api"),
             repositoryRoot = Path.of("/repo"),
             head = "abc123",
             branch = "main",
         )
 
-        assertEquals(DirectoryGitLocation(null, null, null, null), location)
+        assertEquals(ReviewNoteGitLocation(null, null, null, null), location)
+    }
+
+    @Test
+    fun `project-root repository получает канонический пустой vcsRoot`() {
+        val location = ReviewNoteGitLocationResolver.resolve(
+            projectRoot = Path.of("/repo/project"),
+            target = Path.of("/repo/project/services/api"),
+            repositoryRoot = Path.of("/repo/project"),
+            head = "abc123",
+            branch = "main",
+        )
+
+        assertEquals(ReviewNoteGitLocation("", "services/api", "abc123", "main"), location)
+    }
+
+    @Test
+    fun `nested repository получает пути относительно проекта и repository`() {
+        val location = ReviewNoteGitLocationResolver.resolve(
+            projectRoot = Path.of("/repo/project"),
+            target = Path.of("/repo/project/services/api"),
+            repositoryRoot = Path.of("/repo/project/services"),
+            head = "def456",
+            branch = "feature",
+        )
+
+        assertEquals(ReviewNoteGitLocation("services", "api", "def456", "feature"), location)
     }
 }
