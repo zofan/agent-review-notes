@@ -8,10 +8,12 @@ internal data class ReviewNoteStatusChoice(
 )
 
 internal object ReviewNoteStatusChoices {
-    val mutable = listOf(
+    val all = listOf(
         ReviewNoteStatusChoice(ReviewStatus.OPEN, "Open"),
         ReviewNoteStatusChoice(ReviewStatus.IN_PROGRESS, "In Progress"),
         ReviewNoteStatusChoice(ReviewStatus.RESOLVED, "Resolved"),
         ReviewNoteStatusChoice(ReviewStatus.WONT_FIX, "Won't Fix"),
+        ReviewNoteStatusChoice(ReviewStatus.NEEDS_REANCHOR, "Needs Reanchor"),
+        ReviewNoteStatusChoice(ReviewStatus.STALE, "Stale"),
     )
 }

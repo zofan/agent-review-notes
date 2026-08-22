@@ -13,8 +13,10 @@ class ReviewNoteStatusChoicesTest {
                 ReviewStatus.IN_PROGRESS to "In Progress",
                 ReviewStatus.RESOLVED to "Resolved",
                 ReviewStatus.WONT_FIX to "Won't Fix",
+                ReviewStatus.NEEDS_REANCHOR to "Needs Reanchor",
+                ReviewStatus.STALE to "Stale",
             ),
-            ReviewNoteStatusChoices.mutable.map { it.status to it.title },
+            ReviewNoteStatusChoices.all.map { it.status to it.title },
         )
     }
 }

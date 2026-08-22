@@ -75,6 +75,17 @@ class ReviewNoteStore(private val project: Project) {
             }
         }
 
+    fun updateAsync(
+        id: String,
+        kind: ReviewKind,
+        status: ReviewStatus,
+        message: String,
+    ): CompletableFuture<Void> = mutateAsync {
+        mergeFile(id) { content ->
+            ReviewNoteJson.mergeEditable(content, id, kind.wireValue, status, message)
+        }
+    }
+
     fun deleteAsync(id: String): CompletableFuture<Void> = mutateAsync {
         val directory = requireNotNull(notesDirectory(create = false)) { "Каталог заметок не существует" }
         ReviewNoteFileLock.withLock(directory, id) {

@@ -145,6 +145,26 @@ class ReviewNoteJsonTest {
     }
 
     @Test
+    fun `единое редактирование атомарно обновляет статус тип и текст`() {
+        val root = JsonParser.parseString(validJson()).asJsonObject
+        root.addProperty("futureField", "preserve-me")
+
+        val updated = ReviewNoteJson.mergeEditable(
+            content = root.toString(),
+            expectedId = NOTE_ID,
+            kind = "question",
+            status = ReviewStatus.RESOLVED,
+            message = "Уточнённый текст",
+        )
+        val updatedRoot = JsonParser.parseString(updated).asJsonObject
+
+        assertEquals("question", updatedRoot.get("kind").asString)
+        assertEquals("resolved", updatedRoot.get("status").asString)
+        assertEquals("Уточнённый текст", updatedRoot.get("message").asString)
+        assertEquals("preserve-me", updatedRoot.get("futureField").asString)
+    }
+
+    @Test
     fun `редактирование v1 заметки в feature повышает schema до v2`() {
         val updated = ReviewNoteJson.mergeEditable(
             content = validJson(),

@@ -1,24 +1,20 @@
 package ai.agentreviewnotes.ui
 
-internal enum class ReviewNoteInlineField {
-    TYPE,
-    STATUS,
-    NOTE,
-    DELETE,
-}
+internal fun reviewNoteMessageForSave(currentMessage: String, editorText: String): String =
+    if (editorText == currentMessage) currentMessage else editorText.trim()
 
 internal data class ReviewNoteInlineEditState(
-    val activeField: ReviewNoteInlineField? = null,
+    val editing: Boolean = false,
     val pending: Boolean = false,
 ) {
     val canClose: Boolean
         get() = !pending
 
-    fun begin(field: ReviewNoteInlineField): ReviewNoteInlineEditState =
-        if (pending) this else ReviewNoteInlineEditState(activeField = field)
+    fun beginEditing(): ReviewNoteInlineEditState =
+        if (pending) this else copy(editing = true)
 
-    fun saving(field: ReviewNoteInlineField): ReviewNoteInlineEditState {
-        require(activeField == field && !pending)
+    fun saving(): ReviewNoteInlineEditState {
+        require(!pending)
         return copy(pending = true)
     }
 
@@ -32,6 +28,6 @@ internal data class ReviewNoteInlineEditState(
         return copy(pending = false)
     }
 
-    fun cancel(field: ReviewNoteInlineField): ReviewNoteInlineEditState =
-        if (activeField == field && !pending) ReviewNoteInlineEditState() else this
+    fun cancel(): ReviewNoteInlineEditState =
+        if (pending) this else ReviewNoteInlineEditState()
 }

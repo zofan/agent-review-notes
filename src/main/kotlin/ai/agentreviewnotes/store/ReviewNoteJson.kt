@@ -36,7 +36,24 @@ internal object ReviewNoteJson {
         return requireWithinLimit(gson.toJson(root))
     }
 
-    fun mergeEditable(content: String, expectedId: String, kind: String, message: String): String {
+    fun mergeEditable(content: String, expectedId: String, kind: String, message: String): String =
+        mergeEditableFields(content, expectedId, kind, status = null, message)
+
+    fun mergeEditable(
+        content: String,
+        expectedId: String,
+        kind: String,
+        status: ReviewStatus,
+        message: String,
+    ): String = mergeEditableFields(content, expectedId, kind, status, message)
+
+    private fun mergeEditableFields(
+        content: String,
+        expectedId: String,
+        kind: String,
+        status: ReviewStatus?,
+        message: String,
+    ): String {
         val root = StrictJsonParser.parseObject(content)
         val current = decode(root)
         require(current.id == expectedId) { "Имя файла и id заметки не совпадают" }
@@ -44,6 +61,7 @@ internal object ReviewNoteJson {
             root.addProperty("schema", REVIEW_NOTE_SCHEMA_V2)
         }
         root.addProperty("kind", kind)
+        status?.let { root.addProperty("status", it.wireValue) }
         root.addProperty("message", message)
         decode(root)
         return requireWithinLimit(gson.toJson(root))

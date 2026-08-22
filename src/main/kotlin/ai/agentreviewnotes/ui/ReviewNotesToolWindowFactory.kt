@@ -265,12 +265,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private fun editSelected() {
         val note = notes.selectedValue ?: return
-        val kind = ReviewKind.entries.first { it.wireValue == note.kind }
-        val dialog = ReviewNoteDialog(project, initialKind = kind, initialMessage = note.message)
-        if (!dialog.showAndGet()) return
-        store.updateAsync(note.id, dialog.kind, dialog.message).whenComplete { _, error ->
-            if (!isUnavailable() && error != null) showError("Failed to edit the note", error)
-        }
+        project.service<ReviewNoteDetailsService>().show(note)
     }
 
     private fun deleteSelected() {

@@ -7,37 +7,49 @@ import kotlin.test.assertTrue
 
 class ReviewNoteInlineEditStateTest {
     @Test
-    fun `only one field edits at a time and pending mutations cannot be replaced`() {
-        val editingType = ReviewNoteInlineEditState().begin(ReviewNoteInlineField.TYPE)
-        assertEquals(ReviewNoteInlineField.TYPE, editingType.activeField)
+    fun `one edit action exposes the complete form and pending save blocks closing`() {
+        val editing = ReviewNoteInlineEditState().beginEditing()
+        assertTrue(editing.editing)
+        assertFalse(editing.pending)
 
-        val editingNote = editingType.begin(ReviewNoteInlineField.NOTE)
-        assertEquals(ReviewNoteInlineField.NOTE, editingNote.activeField)
-
-        val saving = editingNote.saving(ReviewNoteInlineField.NOTE)
+        val saving = editing.saving()
+        assertTrue(saving.editing)
         assertTrue(saving.pending)
         assertFalse(saving.canClose)
-        assertEquals(saving, saving.begin(ReviewNoteInlineField.STATUS))
-        assertEquals(saving, saving.cancel(ReviewNoteInlineField.NOTE))
+        assertEquals(saving, saving.beginEditing())
+        assertEquals(saving, saving.cancel())
     }
 
     @Test
-    fun `success returns to view while failure keeps the field editable`() {
-        val saving = ReviewNoteInlineEditState()
-            .begin(ReviewNoteInlineField.STATUS)
-            .saving(ReviewNoteInlineField.STATUS)
+    fun `successful save returns to view while failure keeps complete form editable`() {
+        val saving = ReviewNoteInlineEditState().beginEditing().saving()
 
         assertEquals(ReviewNoteInlineEditState(), saving.succeeded())
         assertEquals(
-            ReviewNoteInlineEditState(activeField = ReviewNoteInlineField.STATUS),
+            ReviewNoteInlineEditState(editing = true),
             saving.failed(),
         )
     }
 
     @Test
-    fun `cancel only affects the active non-pending field`() {
-        val editing = ReviewNoteInlineEditState().begin(ReviewNoteInlineField.TYPE)
-        assertEquals(editing, editing.cancel(ReviewNoteInlineField.STATUS))
-        assertEquals(ReviewNoteInlineEditState(), editing.cancel(ReviewNoteInlineField.TYPE))
+    fun `cancel returns a non-pending edit to view`() {
+        assertEquals(
+            ReviewNoteInlineEditState(),
+            ReviewNoteInlineEditState().beginEditing().cancel(),
+        )
+    }
+
+    @Test
+    fun `untouched persisted whitespace is preserved by save preparation`() {
+        assertEquals("  keep exact text  ", reviewNoteMessageForSave("  keep exact text  ", "  keep exact text  "))
+        assertEquals("changed text", reviewNoteMessageForSave("old", "  changed text  "))
+    }
+
+    @Test
+    fun `delete can enter pending state without edit mode`() {
+        val deleting = ReviewNoteInlineEditState().saving()
+        assertFalse(deleting.editing)
+        assertTrue(deleting.pending)
+        assertEquals(ReviewNoteInlineEditState(), deleting.failed())
     }
 }

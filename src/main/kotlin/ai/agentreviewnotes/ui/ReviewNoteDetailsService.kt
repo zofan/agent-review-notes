@@ -24,8 +24,7 @@ class ReviewNoteDetailsService(private val project: Project) {
             ReviewNoteDetailsDialog(
                 project = project,
                 note = note,
-                onUpdate = { kind, message -> store.updateAsync(note.id, kind, message) },
-                onChangeStatus = { status -> store.setStatusAsync(note.id, status) },
+                onSave = { kind, status, message -> store.updateAsync(note.id, kind, status, message) },
                 onDelete = { store.deleteAsync(note.id) },
             ).show()
         }
