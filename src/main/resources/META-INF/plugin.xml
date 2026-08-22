@@ -1,0 +1,32 @@
+<idea-plugin>
+    <id>ai.agentreviewnotes</id>
+    <name>Agent Review Notes</name>
+    <vendor>AI Project</vendor>
+
+    <description><![CDATA[
+        Agent Review Notes stores local code review comments with exact anchors for AI agents.
+        Исходные файлы не меняются, а заметки остаются только в локальном каталоге проекта.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <actions>
+        <action id="AgentReviewNotes.AddNote"
+                class="ai.agentreviewnotes.action.AddReviewNoteAction"
+                text="Добавить замечание для агента"
+                description="Создать локальное замечание для AI-агента">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt R"/>
+        </action>
+    </actions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Agent Review"
+                    anchor="right"
+                    factoryClass="ai.agentreviewnotes.ui.ReviewNotesToolWindowFactory"/>
+        <postStartupActivity implementation="ai.agentreviewnotes.startup.ReviewNotesProjectActivity"/>
+        <codeInsight.lineMarkerProvider language="ANY"
+                                        implementationClass="ai.agentreviewnotes.marker.ReviewNoteLineMarkerProvider"/>
+    </extensions>
+</idea-plugin>

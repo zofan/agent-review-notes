@@ -1,0 +1,53 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
+
+plugins {
+    kotlin("jvm")
+    id("org.jetbrains.intellij.platform")
+}
+
+group = "ai.agentreviewnotes"
+version = "0.1.0-spike"
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_21
+        jvmDefault = JvmDefaultMode.NO_COMPATIBILITY
+    }
+}
+
+dependencies {
+    testImplementation(kotlin("test"))
+
+    intellijPlatform {
+        create("GO", "2026.1.1")
+        bundledPlugin("Git4Idea")
+    }
+}
+
+intellijPlatform {
+    pluginConfiguration {
+        id = "ai.agentreviewnotes"
+        name = "Agent Review Notes"
+        version = project.version.toString()
+
+        ideaVersion {
+            sinceBuild = "261"
+            untilBuild = "261.*"
+        }
+
+        vendor {
+            name = "AI Project"
+        }
+    }
+}
+
+tasks {
+    test {
+        useJUnitPlatform()
+    }
+
+    matching { it.name == "instrumentCode" || it.name == "instrumentTestCode" }.configureEach {
+        enabled = false
+    }
+}
