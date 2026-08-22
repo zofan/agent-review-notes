@@ -10,6 +10,7 @@ import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
 import ai.agentreviewnotes.store.ReviewNotePathPolicy
 import ai.agentreviewnotes.store.ReviewNoteTargetBoundary
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -103,11 +104,15 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private lateinit var reopenButton: JButton
 
     private fun createToolbar(): JPanel {
-        navigateButton = JButton("Перейти").apply { addActionListener { navigateToSelected() } }
-        editButton = JButton("Изменить").apply { addActionListener { editSelected() } }
-        deleteButton = JButton("Удалить").apply { addActionListener { deleteSelected() } }
-        resolveButton = JButton("Решено").apply { addActionListener { setSelectedStatus(ReviewStatus.RESOLVED) } }
-        reopenButton = JButton("Открыть снова").apply { addActionListener { setSelectedStatus(ReviewStatus.OPEN) } }
+        navigateButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Preview, "Перейти к заметке", ::navigateToSelected)
+        editButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Edit, "Изменить заметку", ::editSelected)
+        deleteButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.DeleteTag, "Удалить заметку", ::deleteSelected)
+        resolveButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Checked, "Отметить решённой") {
+            setSelectedStatus(ReviewStatus.RESOLVED)
+        }
+        reopenButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Rollback, "Открыть снова") {
+            setSelectedStatus(ReviewStatus.OPEN)
+        }
         return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
             kindFilter.renderer = KindFilterRenderer()
             kindFilter.toolTipText = "Фильтр замечаний по типу"
@@ -115,7 +120,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             kindFilter.addActionListener { render(store.cachedList()) }
             val kindLabel = JLabel("Тип:")
             kindLabel.labelFor = kindFilter
-            add(JButton("Обновить").apply { addActionListener { refresh() } })
+            add(ReviewNoteActionButtonFactory.create(AllIcons.Actions.Refresh, "Обновить заметки", ::refresh))
             add(kindLabel)
             add(kindFilter)
             add(navigateButton)
