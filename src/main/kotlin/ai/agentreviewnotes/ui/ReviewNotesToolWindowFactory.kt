@@ -39,20 +39,16 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.FlowLayout
 import java.nio.file.Path
-import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
-import java.util.Date
 import java.util.concurrent.CompletionException
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
-import javax.swing.JCheckBox
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
-import javax.swing.JSpinner
 import javax.swing.ListSelectionModel
-import javax.swing.SpinnerDateModel
 
 class ReviewNotesToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
@@ -76,10 +72,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         (listOf(KindFilterOption("All types", null)) +
             ReviewKind.entries.map { kind -> KindFilterOption(kind.title, kind) }).toTypedArray(),
     )
-    private val fromEnabled = JCheckBox("From:")
-    private val fromDate = JSpinner(SpinnerDateModel()).apply { editor = JSpinner.DateEditor(this, "yyyy-MM-dd") }
-    private val toEnabled = JCheckBox("To:")
-    private val toDate = JSpinner(SpinnerDateModel()).apply { editor = JSpinner.DateEditor(this, "yyyy-MM-dd") }
+    private val dateFilter = ComboBox(ReviewNoteDateFilterPreset.entries.toTypedArray())
 
     @Volatile
     private var disposed = false
@@ -131,34 +124,20 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             setSelectedStatus(ReviewStatus.OPEN)
         }
         installSkillButton = AgentSkillInstallButtonFactory.create(::installSkill)
-        fromDate.isEnabled = false
-        toDate.isEnabled = false
-        fromDate.accessibleContext.accessibleName = "Start date"
-        toDate.accessibleContext.accessibleName = "End date"
-        fromEnabled.addActionListener {
-            fromDate.isEnabled = fromEnabled.isSelected
-            render(store.cachedList())
-        }
-        toEnabled.addActionListener {
-            toDate.isEnabled = toEnabled.isSelected
-            render(store.cachedList())
-        }
-        fromDate.addChangeListener { if (fromEnabled.isSelected) render(store.cachedList()) }
-        toDate.addChangeListener { if (toEnabled.isSelected) render(store.cachedList()) }
         return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
             kindFilter.renderer = KindFilterRenderer()
             kindFilter.toolTipText = "Filter notes by type"
             kindFilter.accessibleContext.accessibleName = "Note type"
             kindFilter.addActionListener { render(store.cachedList()) }
+            dateFilter.toolTipText = "Filter notes by creation date"
+            dateFilter.accessibleContext.accessibleName = "Creation date"
+            dateFilter.addActionListener { render(store.cachedList()) }
             val kindLabel = JLabel("Type:")
             kindLabel.labelFor = kindFilter
             add(ReviewNoteActionButtonFactory.create(AllIcons.Actions.Refresh, "Refresh notes", ::refresh))
             add(kindLabel)
             add(kindFilter)
-            add(fromEnabled)
-            add(fromDate)
-            add(toEnabled)
-            add(toDate)
+            add(dateFilter)
             add(viewButton)
             add(navigateButton)
             add(editButton)
@@ -228,12 +207,11 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         val selectedId = notes.selectedValue?.id
         model.clear()
         val selectedKind = kindFilter.item.kind
-        val selectedFrom = selectedFrom()
-        val selectedTo = selectedTo()
+        val dateBounds = dateFilter.item.bounds(LocalDate.now(), ZoneId.systemDefault())
         loaded.asSequence()
             .filter(::isVisibleOnCurrentBranch)
             .filter { note -> ReviewNoteKindFilter.isVisible(note.kind, selectedKind) }
-            .filter { note -> ReviewNoteCreatedAtFilter.isVisible(note.createdAt, selectedFrom, selectedTo) }
+            .filter { note -> ReviewNoteCreatedAtFilter.isVisible(note.createdAt, dateBounds.from, dateBounds.to) }
             .forEach(model::addElement)
         if (selectedId != null) {
             val selectedIndex = (0 until model.size()).firstOrNull { model.getElementAt(it).id == selectedId }
@@ -242,17 +220,6 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         updateButtons()
     }
 
-    private fun selectedFrom(): Instant? {
-        if (!fromEnabled.isSelected) return null
-        val date = (fromDate.value as Date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-        return date.atStartOfDay(ZoneId.systemDefault()).toInstant()
-    }
-
-    private fun selectedTo(): Instant? {
-        if (!toEnabled.isSelected) return null
-        val date = (toDate.value as Date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-        return date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusNanos(1)
-    }
 
     private fun selectNote(noteId: String) {
         val index = (0 until model.size()).firstOrNull { model.getElementAt(it).id == noteId } ?: return
