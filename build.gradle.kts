@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "ai.agentreviewnotes"
-version = "0.1.0-spike"
+version = "0.1.0"
 
 kotlin {
     compilerOptions {
