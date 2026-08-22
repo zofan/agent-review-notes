@@ -43,6 +43,11 @@ internal object ReviewNoteAdmission {
         require(isSafeWorkspacePath(workspacePath)) {
             "Путь заметки выходит за пределы проекта"
         }
+        validateVcsLocation(location.vcsRoot, location.vcsPath, workspacePath)
+        location.branch?.let { branch ->
+            require(branch.isNotBlank()) { "Пустая Git-ветка заметки" }
+            require(location.vcsRoot != null) { "Для Git-ветки отсутствует vcsRoot" }
+        }
         Instant.parse(createdAt)
         note.resolution?.let { resolution ->
             require(resolution.summary.isNotBlank()) { "Пустой resolution summary" }
@@ -63,6 +68,20 @@ internal object ReviewNoteAdmission {
     private fun isSafeWorkspacePath(value: String): Boolean {
         if (value.isBlank()) return false
         val path = runCatching { Path.of(value) }.getOrNull() ?: return false
-        return !path.isAbsolute && path.normalize() == path && !path.startsWith("..")
+        val canonical = path.normalize().toString()
+            .replace(java.io.File.separatorChar, '/')
+        return !path.isAbsolute && !path.startsWith("..") && canonical == value
+    }
+
+    private fun validateVcsLocation(vcsRoot: String?, vcsPath: String?, workspacePath: String) {
+        if (vcsRoot == null && vcsPath == null) return
+        require(vcsRoot != null && vcsPath != null) { "Неполная Git-location заметки" }
+        require(vcsRoot.isEmpty() || isSafeWorkspacePath(vcsRoot)) { "Некорректный vcsRoot заметки" }
+        require(isSafeWorkspacePath(vcsPath)) { "Некорректный vcsPath заметки" }
+        val reconstructed = runCatching {
+            Path.of(vcsRoot).resolve(vcsPath).normalize().toString()
+                .replace(java.io.File.separatorChar, '/')
+        }.getOrNull()
+        require(reconstructed == workspacePath) { "Git-location не соответствует пути заметки" }
     }
 }

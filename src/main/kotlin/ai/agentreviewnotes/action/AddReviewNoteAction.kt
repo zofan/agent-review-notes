@@ -116,6 +116,7 @@ class AddReviewNoteAction : AnAction() {
             endOffset = range.endOffset,
             startLine = document.getLineNumber(range.startOffset) + 1,
             endLine = document.getLineNumber(lastSelectedOffset(range, text.length)) + 1,
+            branch = repository?.currentBranchName,
         )
         val anchor = NoteAnchor(
             selection = selection,

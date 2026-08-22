@@ -28,6 +28,77 @@ class ReviewNoteAdmissionTest {
         }
     }
 
+    @Test
+    fun `пустая Git ветка отклоняется`() {
+        val note = validNote("main.go")
+        val location = note.location.copy(vcsRoot = ".", branch = "")
+
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteAdmission.validate(note.copy(location = location))
+        }
+    }
+
+    @Test
+    fun `Git ветка без корня репозитория отклоняется`() {
+        val note = validNote("main.go")
+        val location = note.location.copy(branch = "feature/review")
+
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteAdmission.validate(note.copy(location = location))
+        }
+    }
+
+    @Test
+    fun `несогласованные workspace и Git пути отклоняются`() {
+        val note = validNote("services/web/main.go")
+        val location = note.location.copy(
+            vcsRoot = "services/api",
+            vcsPath = "main.go",
+            branch = "main",
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteAdmission.validate(note.copy(location = location))
+        }
+    }
+
+    @Test
+    fun `Git root с обходом проекта отклоняется`() {
+        val note = validNote("main.go")
+        val location = note.location.copy(
+            vcsRoot = "../outside",
+            vcsPath = "main.go",
+            branch = "main",
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteAdmission.validate(note.copy(location = location))
+        }
+    }
+
+    @Test
+    fun `Git root с повторным разделителем отклоняется`() {
+        assertInvalidVcsRoot("services//api")
+    }
+
+    @Test
+    fun `Git root с завершающим разделителем отклоняется`() {
+        assertInvalidVcsRoot("services/api/")
+    }
+
+    private fun assertInvalidVcsRoot(vcsRoot: String) {
+        val note = validNote("services/api/main.go")
+        val location = note.location.copy(
+            vcsRoot = vcsRoot,
+            vcsPath = "main.go",
+            branch = "main",
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteAdmission.validate(note.copy(location = location))
+        }
+    }
+
     private fun validNote(workspacePath: String): ReviewNote = ReviewNote(
         id = "123e4567-e89b-42d3-a456-426614174000",
         status = "open",

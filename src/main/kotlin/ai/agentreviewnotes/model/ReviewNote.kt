@@ -40,7 +40,21 @@ data class NoteLocation(
     val endOffset: Int,
     val startLine: Int,
     val endLine: Int,
+    val branch: String? = null,
 )
+
+object ReviewNoteBranch {
+    fun isVisible(noteBranch: String?, currentBranch: String?): Boolean =
+        noteBranch == null || noteBranch == currentBranch
+
+    fun isVisible(
+        noteBranch: String?,
+        noteVcsRoot: String?,
+        currentBranch: String?,
+        currentVcsRoot: String?,
+    ): Boolean = noteBranch == null ||
+        (noteVcsRoot != null && noteVcsRoot == currentVcsRoot && noteBranch == currentBranch)
+}
 
 data class NoteAnchor(
     val selection: String,

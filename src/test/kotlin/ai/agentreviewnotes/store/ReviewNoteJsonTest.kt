@@ -106,6 +106,16 @@ class ReviewNoteJsonTest {
         }
     }
 
+    @Test
+    fun `branch неверного типа отклоняется`() {
+        val root = JsonParser.parseString(validJson()).asJsonObject
+        root.getAsJsonObject("location").addProperty("branch", 42)
+
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteJson.decode(root.toString(), NOTE_ID)
+        }
+    }
+
     private fun validJson(): String =
         """
         {

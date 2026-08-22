@@ -2,6 +2,7 @@ package ai.agentreviewnotes.ui
 
 import ai.agentreviewnotes.anchor.AnchorResult
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
+import ai.agentreviewnotes.model.ReviewNoteBranch
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
@@ -19,6 +20,9 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
+import git4idea.repo.GitRepository
+import git4idea.repo.GitRepositoryChangeListener
+import git4idea.repo.GitRepositoryManager
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.FlowLayout
@@ -69,6 +73,15 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
                 if (!isUnavailable()) render(store.cachedList())
             }
         }
+        project.messageBus.connect(this).subscribe(
+            GitRepository.GIT_REPO_CHANGE,
+            GitRepositoryChangeListener {
+                if (isUnavailable()) return@GitRepositoryChangeListener
+                ApplicationManager.getApplication().invokeLater {
+                    if (!isUnavailable()) render(store.cachedList())
+                }
+            },
+        )
         refresh()
     }
 
@@ -97,12 +110,36 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private fun render(loaded: List<ReviewNote>) {
         val selectedId = notes.selectedValue?.id
         model.clear()
-        loaded.forEach(model::addElement)
+        loaded.filter(::isVisibleOnCurrentBranch).forEach(model::addElement)
         if (selectedId != null) {
             val selectedIndex = (0 until model.size()).firstOrNull { model.getElementAt(it).id == selectedId }
             if (selectedIndex != null) notes.selectedIndex = selectedIndex
         }
         updateButtons()
+    }
+
+    private fun isVisibleOnCurrentBranch(note: ReviewNote): Boolean {
+        val branch = note.location.branch ?: return true
+        val vcsRoot = note.location.vcsRoot ?: return false
+        val basePath = project.basePath ?: return false
+        val projectRoot = Path.of(basePath).normalize()
+        val expectedRoot = runCatching { projectRoot.resolve(vcsRoot).normalize() }.getOrNull() ?: return false
+        if (!expectedRoot.startsWith(projectRoot)) return false
+        val repository = GitRepositoryManager.getInstance(project).repositories.firstOrNull { candidate ->
+            Path.of(candidate.root.path).normalize() == expectedRoot
+        }
+        val currentVcsRoot = repository?.root?.path?.let { rootPath ->
+            runCatching { projectRoot.relativize(Path.of(rootPath).normalize()) }
+                .getOrNull()
+                ?.toString()
+                ?.replace(java.io.File.separatorChar, '/')
+        }
+        return ReviewNoteBranch.isVisible(
+            noteBranch = branch,
+            noteVcsRoot = vcsRoot,
+            currentBranch = repository?.currentBranchName,
+            currentVcsRoot = currentVcsRoot,
+        )
     }
 
     private fun updateButtons() {
@@ -192,7 +229,8 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             if (component is JLabel && value is ReviewNote) {
                 val symbol = value.anchor.symbol?.let { " · $it" }.orEmpty()
-                component.text = "${value.kind.uppercase()} · ${value.status} · ${value.location.workspacePath}:${value.location.startLine}$symbol — ${value.message}"
+                val branch = value.location.branch?.let { " · $it" }.orEmpty()
+                component.text = "${value.kind.uppercase()} · ${value.status}$branch · ${value.location.workspacePath}:${value.location.startLine}$symbol — ${value.message}"
                 component.toolTipText = value.message
             }
             return component

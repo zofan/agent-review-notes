@@ -45,7 +45,7 @@ internal object ReviewNoteJson {
 
         val location = requireObject(root, "location")
         listOf("workspacePath", "fileSha256").forEach { name -> requireString(location, name) }
-        listOf("vcsRoot", "vcsPath", "head").forEach { name -> requireOptionalString(location, name) }
+        listOf("vcsRoot", "vcsPath", "head", "branch").forEach { name -> requireOptionalString(location, name) }
         listOf("startOffset", "endOffset", "startLine", "endLine").forEach { name ->
             requireInt(location, name)
         }
