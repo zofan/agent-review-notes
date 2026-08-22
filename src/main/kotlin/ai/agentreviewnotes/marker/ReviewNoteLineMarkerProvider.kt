@@ -57,7 +57,17 @@ class ReviewNoteLineMarkerProvider : LineMarkerProvider {
             val anchor = ReviewNoteAnchor.resolve(note, currentText, currentSha256)
             if (anchor is AnchorResult.Unresolved) return@forEach
             val offset = (anchor as AnchorResult.Resolved).offset
-            val target = elements.firstOrNull { element -> element.textRange.containsOffset(offset) }
+            val markerOffset = ReviewNoteMarkerOffset.forDocument(offset, currentText.length) ?: return@forEach
+            val target = elements
+                .asSequence()
+                .filter { element ->
+                    ReviewNoteMarkerOffset.containsCharacter(
+                        element.textRange.startOffset,
+                        element.textRange.endOffset,
+                        markerOffset,
+                    )
+                }
+                .minByOrNull { element -> element.textRange.length }
                 ?: return@forEach
             val tooltip = "${note.kind.uppercase()}: ${note.message}"
             val marker = LineMarkerInfo(

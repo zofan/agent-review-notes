@@ -7,12 +7,11 @@ import com.intellij.ide.projectView.ProjectViewNode
 import com.intellij.ide.projectView.ProjectViewNodeDecorator
 import com.intellij.openapi.components.service
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VirtualFile
 import java.nio.file.Path
 
 class ReviewNoteProjectViewDecorator : ProjectViewNodeDecorator {
     override fun decorate(node: ProjectViewNode<*>, data: PresentationData) {
-        val file = node.value as? VirtualFile ?: return
+        val file = node.virtualFile ?: return
         val project = node.project
         if (project.isDisposed) return
         val basePath = project.basePath ?: return

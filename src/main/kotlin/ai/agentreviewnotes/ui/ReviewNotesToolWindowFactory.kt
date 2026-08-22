@@ -137,10 +137,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             statusFilter.toolTipText = "Filter notes by status"
             statusFilter.accessibleContext.accessibleName = "Note status"
             statusFilter.addActionListener { render(store.cachedList()) }
-            val kindLabel = JLabel("Type:")
-            kindLabel.labelFor = kindFilter
-            add(ReviewNoteActionButtonFactory.create(AllIcons.Actions.Refresh, "Refresh notes", ::refresh))
-            add(kindLabel)
+            add(ReviewNoteActionButtonFactory.createCompact(AllIcons.Actions.Refresh, "Refresh notes", ::refresh))
             add(kindFilter)
             add(dateFilter)
             add(statusFilter)

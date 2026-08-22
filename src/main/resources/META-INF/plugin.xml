@@ -4,10 +4,15 @@
     <vendor>0x9171</vendor>
 
     <description><![CDATA[
-        Agent Review Notes stores local code and directory review comments without changing project files.
+        Agent Review Notes stores local code and directory review comments without changing project files and includes a bundled AI-agent skill for reading and updating notes.
         <p>
             Плагин сохраняет локальные замечания к коду и структуре проекта, не изменяя исходные
             файлы и не отправляя данные в сеть.
+        </p>
+        <p>
+            Плагин поставляется со встроенным skill <code>agent-review-notes</code> для AI-агента.
+            Skill описывает безопасное чтение и изменение очереди замечаний и устанавливается в
+            проект кнопкой <b>Install SKILL</b> в окне Agent Review.
         </p>
         <p>Плагин поддерживает:</p>
         <ul>
@@ -22,6 +27,9 @@
         <p>
             Заметки хранятся только в локальном каталоге проекта. Плагин не запускает AI-агентов
             самостоятельно и не добавляет служебные комментарии в production-код.
+        </p>
+        <p>
+            Copyright © Andrey Loenov
         </p>
     ]]></description>
 

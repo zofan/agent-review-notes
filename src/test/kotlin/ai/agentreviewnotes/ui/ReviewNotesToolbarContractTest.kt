@@ -17,6 +17,10 @@ class ReviewNotesToolbarContractTest {
         assertFalse(source.contains("viewButton"))
         assertFalse(source.contains("navigateButton"))
         assertFalse(source.contains("actionsMenu.button"))
+        assertFalse(source.contains("JLabel(\"Type:\")"))
+        assertFalse(source.contains("add(kindLabel)"))
+        assertTrue(source.contains("add(kindFilter)"))
+        assertTrue(source.contains("ReviewNoteActionButtonFactory.createCompact"))
         assertTrue(source.contains("ReviewNoteContextMenu.install(notes"))
     }
 }
