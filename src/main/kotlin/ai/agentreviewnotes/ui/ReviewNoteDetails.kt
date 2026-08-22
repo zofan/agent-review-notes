@@ -7,7 +7,7 @@ internal data class ReviewNoteDetailRow(val label: String, val value: String)
 internal object ReviewNoteDetails {
     fun rows(note: ReviewNote): List<ReviewNoteDetailRow> {
         val directory = note.location.target == "directory"
-        val target = if (directory) "Каталог: ${note.location.workspacePath}" else "Файл: ${note.location.workspacePath}"
+        val target = if (directory) "Directory: ${note.location.workspacePath}" else "File: ${note.location.workspacePath}"
         val lines = when {
             directory -> "—"
             note.location.startLine == note.location.endLine -> note.location.startLine.toString()
@@ -18,20 +18,20 @@ internal object ReviewNoteDetails {
         }.ifBlank { "—" }
         val repository = note.location.vcsRoot?.let { root ->
             note.location.vcsPath?.let { path -> "$root ($path)" } ?: root
-        } ?: "Вне Git"
+        } ?: "Outside Git"
         return listOf(
             ReviewNoteDetailRow("ID", note.id),
-            ReviewNoteDetailRow("Цель", target),
-            ReviewNoteDetailRow("Строки", lines),
-            ReviewNoteDetailRow("Сниппет", snippet),
-            ReviewNoteDetailRow("Репозиторий", repository),
-            ReviewNoteDetailRow("Ветка", note.location.branch ?: "—"),
+            ReviewNoteDetailRow("Target", target),
+            ReviewNoteDetailRow("Lines", lines),
+            ReviewNoteDetailRow("Snippet", snippet),
+            ReviewNoteDetailRow("Repository", repository),
+            ReviewNoteDetailRow("Branch", note.location.branch ?: "—"),
             ReviewNoteDetailRow("Git snapshot", note.location.head ?: "—"),
-            ReviewNoteDetailRow("Создано", note.createdAt),
-            ReviewNoteDetailRow("Решено", note.resolution?.resolvedAt ?: "—"),
-            ReviewNoteDetailRow("Тип", note.kind),
-            ReviewNoteDetailRow("Статус", note.status),
-            ReviewNoteDetailRow("Замечание", note.message),
+            ReviewNoteDetailRow("Created", note.createdAt),
+            ReviewNoteDetailRow("Resolved", note.resolution?.resolvedAt ?: "—"),
+            ReviewNoteDetailRow("Type", note.kind),
+            ReviewNoteDetailRow("Status", note.status),
+            ReviewNoteDetailRow("Note", note.message),
         )
     }
 }

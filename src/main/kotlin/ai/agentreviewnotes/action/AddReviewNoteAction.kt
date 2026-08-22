@@ -65,7 +65,7 @@ class AddReviewNoteAction : AnAction() {
             {
                 ApplicationManager.getApplication().runReadAction<ReviewNote> {
                     check(document.modificationStamp == modificationStamp) {
-                        "Документ изменился во время создания заметки; повторите действие"
+                        "The document changed while the note was being created; try again"
                     }
                     buildNote(project, document, file.path, range, kind, message)
                 }
@@ -77,7 +77,7 @@ class AddReviewNoteAction : AnAction() {
                 if (project.isDisposed) return@invokeLater
                 if (error != null) {
                     val cause = (error as? CompletionException)?.cause ?: error
-                    Messages.showErrorDialog(project, cause.message ?: "Не удалось сохранить заметку", "Agent Review Notes")
+                    Messages.showErrorDialog(project, cause.message ?: "Failed to save the note", "Agent Review Notes")
                     return@invokeLater
                 }
                 PsiDocumentManager.getInstance(project).getPsiFile(document)?.let {

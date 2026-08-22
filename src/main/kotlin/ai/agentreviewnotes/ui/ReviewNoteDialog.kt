@@ -28,7 +28,7 @@ class ReviewNoteDialog(
         get() = messageArea.text.trim()
 
     init {
-        title = if (initialKind == null) "Замечание для AI-агента" else "Изменить замечание"
+        title = if (initialKind == null) "Review note for AI agent" else "Edit review note"
         kindBox.renderer = ReviewKindRenderer()
         if (initialKind != null) kindBox.selectedItem = initialKind
         messageArea.text = initialMessage
@@ -41,15 +41,15 @@ class ReviewNoteDialog(
         val scrollPane = JBScrollPane(messageArea)
         scrollPane.preferredSize = Dimension(560, 150)
         return FormBuilder.createFormBuilder()
-            .addLabeledComponent(JBLabel("Тип:"), kindBox)
-            .addLabeledComponentFillVertically("Замечание:", scrollPane)
+            .addLabeledComponent(JBLabel("Type:"), kindBox)
+            .addLabeledComponentFillVertically("Note:", scrollPane)
             .panel
     }
 
     override fun getPreferredFocusedComponent(): JComponent = messageArea
 
     override fun doValidate(): ValidationInfo? {
-        if (message.isBlank()) return ValidationInfo("Напиши текст замечания", messageArea)
+        if (message.isBlank()) return ValidationInfo("Enter the review note text", messageArea)
         return null
     }
 

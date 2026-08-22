@@ -31,15 +31,15 @@
     <actions>
         <action id="AgentReviewNotes.AddNote"
                 class="ai.agentreviewnotes.action.AddReviewNoteAction"
-                text="Добавить замечание для агента"
-                description="Создать локальное замечание для AI-агента">
+                text="Add Review Note for AI Agent"
+                description="Create a local review note for an AI agent">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt R"/>
         </action>
         <action id="AgentReviewNotes.AddDirectoryNote"
                 class="ai.agentreviewnotes.action.AddDirectoryReviewNoteAction"
-                text="Добавить замечание на каталог"
-                description="Создать локальное замечание на выбранный каталог">
+                text="Add Review Note to Directory"
+                description="Create a local review note for the selected directory">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </action>
     </actions>

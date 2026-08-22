@@ -15,14 +15,14 @@ internal class ReviewNoteDetailsDialog(project: Project, note: ReviewNote) : Dia
     private val rows = ReviewNoteDetails.rows(note)
 
     init {
-        title = "Подробности замечания"
+        title = "Review Note Details"
         init()
     }
 
     override fun createCenterPanel(): JComponent {
         val builder = FormBuilder.createFormBuilder()
         rows.forEach { row ->
-            val component = if (row.label == "Сниппет" || row.label == "Замечание") {
+            val component = if (row.label == "Snippet" || row.label == "Note") {
                 JBScrollPane(JBTextArea(row.value, 4, 56).apply {
                     isEditable = false
                     lineWrap = true

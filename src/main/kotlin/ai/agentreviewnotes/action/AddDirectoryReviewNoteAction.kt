@@ -49,9 +49,9 @@ class AddDirectoryReviewNoteAction : AnAction() {
                 val projectRoot = Path.of(requireNotNull(project.basePath)).toRealPath()
                 val directoryPath = ReviewNoteTargetBoundary.resolve(projectRoot, Path.of(directory.path))
                 require(directoryPath != projectRoot) {
-                    "Каталог выходит за пределы проекта или является корнем проекта"
+                    "The directory is outside the project or is the project root"
                 }
-                require(!directory.`is`(VFileProperty.SYMLINK)) { "Символьная ссылка не может быть целью заметки" }
+                require(!directory.`is`(VFileProperty.SYMLINK)) { "A symbolic link cannot be a note target" }
                 val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(directory)
                 val repositoryRoot = repository?.root?.path?.let(Path::of)?.let { path ->
                     runCatching { path.toRealPath() }.getOrNull()
@@ -82,7 +82,7 @@ class AddDirectoryReviewNoteAction : AnAction() {
                 if (project.isDisposed) return@invokeLater
                 if (error != null) {
                     val cause = (error as? CompletionException)?.cause ?: error
-                    Messages.showErrorDialog(project, cause.message ?: "Не удалось сохранить заметку", "Agent Review Notes")
+                    Messages.showErrorDialog(project, cause.message ?: "Failed to save the note", "Agent Review Notes")
                     return@invokeLater
                 }
                 ToolWindowManager.getInstance(project).getToolWindow("Agent Review")?.show()

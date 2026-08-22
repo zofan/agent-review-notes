@@ -70,12 +70,12 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private val model = DefaultListModel<ReviewNote>()
     private val notes = JBList(model)
     private val kindFilter = ComboBox(
-        (listOf(KindFilterOption("Все типы", null)) +
+        (listOf(KindFilterOption("All types", null)) +
             ReviewKind.entries.map { kind -> KindFilterOption(kind.title, kind) }).toTypedArray(),
     )
-    private val fromEnabled = JCheckBox("С:")
+    private val fromEnabled = JCheckBox("From:")
     private val fromDate = JSpinner(SpinnerDateModel()).apply { editor = JSpinner.DateEditor(this, "yyyy-MM-dd") }
-    private val toEnabled = JCheckBox("По:")
+    private val toEnabled = JCheckBox("To:")
     private val toDate = JSpinner(SpinnerDateModel()).apply { editor = JSpinner.DateEditor(this, "yyyy-MM-dd") }
 
     @Volatile
@@ -116,20 +116,20 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private lateinit var reopenButton: JButton
 
     private fun createToolbar(): JPanel {
-        viewButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Preview, "Просмотреть заметку", ::viewSelected)
-        navigateButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Forward, "Перейти к заметке", ::navigateToSelected)
-        editButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Edit, "Изменить заметку", ::editSelected)
-        deleteButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.DeleteTag, "Удалить заметку", ::deleteSelected)
-        resolveButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Checked, "Отметить решённой") {
+        viewButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Preview, "View note", ::viewSelected)
+        navigateButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Forward, "Go to note target", ::navigateToSelected)
+        editButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Edit, "Edit note", ::editSelected)
+        deleteButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.DeleteTag, "Delete note", ::deleteSelected)
+        resolveButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Checked, "Resolve note") {
             setSelectedStatus(ReviewStatus.RESOLVED)
         }
-        reopenButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Rollback, "Открыть снова") {
+        reopenButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Rollback, "Reopen note") {
             setSelectedStatus(ReviewStatus.OPEN)
         }
         fromDate.isEnabled = false
         toDate.isEnabled = false
-        fromDate.accessibleContext.accessibleName = "Дата начала периода"
-        toDate.accessibleContext.accessibleName = "Дата окончания периода"
+        fromDate.accessibleContext.accessibleName = "Start date"
+        toDate.accessibleContext.accessibleName = "End date"
         fromEnabled.addActionListener {
             fromDate.isEnabled = fromEnabled.isSelected
             render(store.cachedList())
@@ -142,12 +142,12 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         toDate.addChangeListener { if (toEnabled.isSelected) render(store.cachedList()) }
         return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
             kindFilter.renderer = KindFilterRenderer()
-            kindFilter.toolTipText = "Фильтр замечаний по типу"
-            kindFilter.accessibleContext.accessibleName = "Тип замечания"
+            kindFilter.toolTipText = "Filter notes by type"
+            kindFilter.accessibleContext.accessibleName = "Note type"
             kindFilter.addActionListener { render(store.cachedList()) }
-            val kindLabel = JLabel("Тип:")
+            val kindLabel = JLabel("Type:")
             kindLabel.labelFor = kindFilter
-            add(ReviewNoteActionButtonFactory.create(AllIcons.Actions.Refresh, "Обновить заметки", ::refresh))
+            add(ReviewNoteActionButtonFactory.create(AllIcons.Actions.Refresh, "Refresh notes", ::refresh))
             add(kindLabel)
             add(kindFilter)
             add(fromEnabled)
@@ -165,7 +165,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private fun refresh() {
         store.refreshAsync().whenComplete { _, error ->
-            if (!isUnavailable() && error != null) showError("Не удалось обновить заметки", error)
+            if (!isUnavailable() && error != null) showError("Failed to refresh notes", error)
         }
     }
 
@@ -249,7 +249,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         val dialog = ReviewNoteDialog(project, initialKind = kind, initialMessage = note.message)
         if (!dialog.showAndGet()) return
         store.updateAsync(note.id, dialog.kind, dialog.message).whenComplete { _, error ->
-            if (!isUnavailable() && error != null) showError("Не удалось изменить заметку", error)
+            if (!isUnavailable() && error != null) showError("Failed to edit the note", error)
         }
     }
 
@@ -257,13 +257,13 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         val note = notes.selectedValue ?: return
         val answer = Messages.showYesNoDialog(
             project,
-            "Удалить замечание ${note.id}?",
-            "Удалить замечание",
+            "Delete note ${note.id}?",
+            "Delete Review Note",
             Messages.getWarningIcon(),
         )
         if (answer != Messages.YES) return
         store.deleteAsync(note.id).whenComplete { _, error ->
-            if (!isUnavailable() && error != null) showError("Не удалось удалить заметку", error)
+            if (!isUnavailable() && error != null) showError("Failed to delete the note", error)
         }
     }
 
@@ -275,7 +275,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         ).whenComplete { outcome, error ->
             if (isUnavailable()) return@whenComplete
             if (error != null) {
-                showError("Не удалось открыть заметку", error)
+                showError("Failed to open the note", error)
                 return@whenComplete
             }
             ApplicationManager.getApplication().invokeLater {
@@ -287,35 +287,35 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private fun setSelectedStatus(status: ReviewStatus) {
         val note = notes.selectedValue ?: return
         store.setStatusAsync(note.id, status).whenComplete { _, error ->
-            if (!isUnavailable() && error != null) showError("Не удалось изменить статус", error)
+            if (!isUnavailable() && error != null) showError("Failed to change the note status", error)
         }
     }
 
     private fun resolveNavigation(note: ReviewNote): NavigationOutcome {
-        val basePath = project.basePath ?: return NavigationOutcome.Warning("У проекта нет локального каталога")
+        val basePath = project.basePath ?: return NavigationOutcome.Warning("The project has no local directory")
         val projectRoot = Path.of(basePath).normalize()
         val path = projectRoot.resolve(note.location.workspacePath).normalize()
         if (!path.startsWith(projectRoot)) {
-            return NavigationOutcome.Warning("Путь заметки выходит за пределы проекта")
+            return NavigationOutcome.Warning("The note path is outside the project")
         }
         val realPath = runCatching { ReviewNoteTargetBoundary.resolve(projectRoot, path) }.getOrNull()
-            ?: return NavigationOutcome.Warning("Цель заметки больше не существует")
+            ?: return NavigationOutcome.Warning("The note target no longer exists")
         val file = LocalFileSystem.getInstance().findFileByNioFile(realPath)
-            ?: return NavigationOutcome.Warning("Файл заметки больше не существует")
+            ?: return NavigationOutcome.Warning("The note file no longer exists")
         if (file.`is`(VFileProperty.SYMLINK)) {
-            return NavigationOutcome.Warning("Символьная ссылка не может быть целью заметки")
+            return NavigationOutcome.Warning("A symbolic link cannot be a note target")
         }
         if (!ProjectFileIndex.getInstance(project).isInContent(file)) {
-            return NavigationOutcome.Warning("Файл заметки не входит в content roots проекта")
+            return NavigationOutcome.Warning("The note file is outside the project content roots")
         }
         if (note.location.target == "directory") {
             if (!file.isDirectory || file.`is`(VFileProperty.SYMLINK)) {
-                return NavigationOutcome.Warning("Каталог заметки больше не существует или небезопасен")
+                return NavigationOutcome.Warning("The note directory no longer exists or is unsafe")
             }
             return NavigationOutcome.Directory(file)
         }
         val document = FileDocumentManager.getInstance().getDocument(file)
-            ?: return NavigationOutcome.Warning("Файл заметки нельзя открыть как текст")
+            ?: return NavigationOutcome.Warning("The note file cannot be opened as text")
         return when (val anchor = ReviewNoteAnchor.resolve(note, document.immutableCharSequence.toString())) {
             is AnchorResult.Resolved -> NavigationOutcome.Resolved(file, anchor.offset)
             is AnchorResult.Unresolved -> NavigationOutcome.NeedsReanchor(anchor.reason)
@@ -328,7 +328,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             is NavigationOutcome.Directory -> ProjectView.getInstance(project).select(null, outcome.file, true)
             is NavigationOutcome.NeedsReanchor -> {
                 store.setStatusAsync(note.id, ReviewStatus.NEEDS_REANCHOR)
-                Messages.showWarningDialog(project, outcome.reason, "Нужна ручная привязка")
+                Messages.showWarningDialog(project, outcome.reason, "Manual Re-anchoring Required")
             }
             is NavigationOutcome.Warning -> Messages.showWarningDialog(project, outcome.message, "Agent Review Notes")
         }

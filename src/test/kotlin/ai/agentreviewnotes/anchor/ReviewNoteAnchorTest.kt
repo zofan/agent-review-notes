@@ -35,7 +35,7 @@ class ReviewNoteAnchorTest {
 
         val result = assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(note, "beta\n$original"))
 
-        assertEquals("Выделенный фрагмент встречается несколько раз", result.reason)
+        assertEquals("The selected fragment occurs more than once", result.reason)
     }
 
     @Test
@@ -56,7 +56,7 @@ class ReviewNoteAnchorTest {
 
         val result = assertIs<AnchorResult.Unresolved>(ReviewNoteAnchor.resolve(note, "alpha\ndelta\ngamma"))
 
-        assertEquals("Выделенный фрагмент больше не найден", result.reason)
+        assertEquals("The selected fragment was not found", result.reason)
     }
 
     @Test

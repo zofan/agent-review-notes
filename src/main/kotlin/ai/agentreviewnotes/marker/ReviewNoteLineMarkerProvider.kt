@@ -69,7 +69,7 @@ class ReviewNoteLineMarkerProvider : LineMarkerProvider {
                     project.service<ReviewNoteToolWindowService>().showNote(note.id)
                 },
                 GutterIconRenderer.Alignment.LEFT,
-                { "Открыть замечание: $tooltip" },
+                { "Open note: $tooltip" },
             )
             result.add(marker)
         }

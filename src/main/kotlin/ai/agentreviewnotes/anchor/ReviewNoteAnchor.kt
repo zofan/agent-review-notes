@@ -21,20 +21,20 @@ object ReviewNoteAnchor {
 
         val selection = note.anchor.selection
         if (selection.isEmpty()) {
-            return AnchorResult.Unresolved("Исходная строка изменилась, а точного выделения нет")
+            return AnchorResult.Unresolved("The original line changed and there is no exact selection")
         }
 
         val occurrences = occurrenceOffsets(currentText, selection, MAX_OCCURRENCES + 1)
         if (occurrences.size > MAX_OCCURRENCES) {
-            return AnchorResult.Unresolved("Выделенный фрагмент встречается слишком много раз")
+            return AnchorResult.Unresolved("The selected fragment occurs too many times")
         }
         val contextual = occurrences.filter { offset -> contextMatches(note, currentText, offset) }
         if (contextual.size == 1) return AnchorResult.Resolved(contextual.first())
 
         return when (occurrences.size) {
-            0 -> AnchorResult.Unresolved("Выделенный фрагмент больше не найден")
+            0 -> AnchorResult.Unresolved("The selected fragment was not found")
             1 -> AnchorResult.Resolved(occurrences.first())
-            else -> AnchorResult.Unresolved("Выделенный фрагмент встречается несколько раз")
+            else -> AnchorResult.Unresolved("The selected fragment occurs more than once")
         }
     }
 
@@ -72,10 +72,10 @@ object ReviewNoteAnchor {
         val end = note.location.endOffset
         val selection = note.anchor.selection
         if (start < 0 || end < start || end > text.length || end - start != selection.length) {
-            return AnchorResult.Unresolved("Сохранённый диапазон не соответствует snapshot файла")
+            return AnchorResult.Unresolved("The stored range does not match the file snapshot")
         }
         if (!text.regionMatches(start, selection, 0, selection.length)) {
-            return AnchorResult.Unresolved("Сохранённый фрагмент не соответствует snapshot файла")
+            return AnchorResult.Unresolved("The stored fragment does not match the file snapshot")
         }
         return AnchorResult.Resolved(start)
     }
