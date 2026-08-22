@@ -4,18 +4,34 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertFalse
 
-class ReviewNoteEditorAnnotatorContractTest {
+class ReviewNoteEditorHighlighterContractTest {
     @Test
-    fun `plugin registers annotator that highlights resolved note range`() {
+    fun `plugin uses editor markup lifecycle instead of a language-specific ANY annotator`() {
         val descriptor = Files.readString(Path.of("src/main/resources/META-INF/plugin.xml"))
-        val source = Files.readString(
-            Path.of("src/main/kotlin/ai/agentreviewnotes/marker/ReviewNoteEditorAnnotator.kt"),
+        val markup = Files.readString(
+            Path.of("src/main/kotlin/ai/agentreviewnotes/marker/ReviewNoteEditorMarkup.kt"),
+        )
+        val lifecycle = Files.readString(
+            Path.of("src/main/kotlin/ai/agentreviewnotes/startup/ReviewNotesProjectActivity.kt"),
+        )
+        val highlighter = Files.readString(
+            Path.of("src/main/kotlin/ai/agentreviewnotes/marker/ReviewNoteEditorHighlighter.kt"),
         )
 
-        assertContains(descriptor, "ai.agentreviewnotes.marker.ReviewNoteEditorAnnotator")
-        assertContains(source, "ReviewNoteHighlightRange.resolve")
-        assertContains(source, "newSilentAnnotation")
-        assertContains(source, "enforcedTextAttributes")
+        assertFalse(descriptor.contains("<annotator language=\"ANY\""))
+        assertContains(markup, "addRangeHighlighter")
+        assertContains(markup, "HighlighterTargetArea.EXACT_RANGE")
+        assertContains(markup, "gutterIconRenderer")
+        assertContains(lifecycle, "FileEditorManagerListener.FILE_EDITOR_MANAGER")
+        assertContains(lifecycle, "addDocumentListener")
+        assertContains(lifecycle, "highlighter.refreshAll()")
+        assertContains(highlighter, "getAppScheduledExecutorService")
+        assertContains(highlighter, "runReadAction")
+        assertContains(highlighter, "modificationStamp")
+        assertContains(highlighter, "ReviewNoteRefreshGeneration")
+        assertContains(highlighter, "if (project.isDisposed)")
+        assertFalse(highlighter.contains("catch (error: Throwable)"))
     }
 }
