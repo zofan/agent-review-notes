@@ -5,6 +5,7 @@ import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 import ai.agentreviewnotes.model.ReviewNoteBranch
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
+import ai.agentreviewnotes.model.ReviewNoteKindFilter
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
 import com.intellij.openapi.application.ApplicationManager
@@ -13,6 +14,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.wm.ToolWindow
@@ -48,10 +50,16 @@ class ReviewNotesToolWindowFactory : ToolWindowFactory {
     override fun shouldBeAvailable(project: Project): Boolean = true
 }
 
+private data class KindFilterOption(val title: String, val kind: ReviewKind?)
+
 private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayout()), com.intellij.openapi.Disposable {
     private val store = project.service<ReviewNoteStore>()
     private val model = DefaultListModel<ReviewNote>()
     private val notes = JBList(model)
+    private val kindFilter = ComboBox(
+        (listOf(KindFilterOption("Все типы", null)) +
+            ReviewKind.entries.map { kind -> KindFilterOption(kind.title, kind) }).toTypedArray(),
+    )
 
     @Volatile
     private var disposed = false
@@ -99,7 +107,15 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         resolveButton = JButton("Решено").apply { addActionListener { setSelectedStatus(ReviewStatus.RESOLVED) } }
         reopenButton = JButton("Открыть снова").apply { addActionListener { setSelectedStatus(ReviewStatus.OPEN) } }
         return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+            kindFilter.renderer = KindFilterRenderer()
+            kindFilter.toolTipText = "Фильтр замечаний по типу"
+            kindFilter.accessibleContext.accessibleName = "Тип замечания"
+            kindFilter.addActionListener { render(store.cachedList()) }
+            val kindLabel = JLabel("Тип:")
+            kindLabel.labelFor = kindFilter
             add(JButton("Обновить").apply { addActionListener { refresh() } })
+            add(kindLabel)
+            add(kindFilter)
             add(navigateButton)
             add(editButton)
             add(deleteButton)
@@ -117,7 +133,11 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private fun render(loaded: List<ReviewNote>) {
         val selectedId = notes.selectedValue?.id
         model.clear()
-        loaded.filter(::isVisibleOnCurrentBranch).forEach(model::addElement)
+        val selectedKind = kindFilter.item.kind
+        loaded.asSequence()
+            .filter(::isVisibleOnCurrentBranch)
+            .filter { note -> ReviewNoteKindFilter.isVisible(note.kind, selectedKind) }
+            .forEach(model::addElement)
         if (selectedId != null) {
             val selectedIndex = (0 until model.size()).firstOrNull { model.getElementAt(it).id == selectedId }
             if (selectedIndex != null) notes.selectedIndex = selectedIndex
@@ -249,6 +269,20 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     override fun dispose() {
         disposed = true
+    }
+
+    private class KindFilterRenderer : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: JList<*>?,
+            value: Any?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean,
+        ): Component {
+            val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+            if (component is JLabel && value is KindFilterOption) component.text = value.title
+            return component
+        }
     }
 
     private class ReviewNoteRenderer : DefaultListCellRenderer() {

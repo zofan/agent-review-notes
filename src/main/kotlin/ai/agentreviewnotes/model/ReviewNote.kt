@@ -18,6 +18,11 @@ enum class ReviewStatus(val wireValue: String) {
     STALE("stale"),
 }
 
+object ReviewNoteKindFilter {
+    fun isVisible(noteKind: String, selectedKind: ReviewKind?): Boolean =
+        selectedKind == null || noteKind == selectedKind.wireValue
+}
+
 data class ReviewNote(
     val schema: String = REVIEW_NOTE_SCHEMA,
     val id: String,
