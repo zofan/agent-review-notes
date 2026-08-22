@@ -42,6 +42,10 @@
                 description="Create a local review note for the selected directory">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </action>
+        <group id="AgentReviewNotes.KeymapGroup" text="Agent Review Notes" popup="false">
+            <reference ref="AgentReviewNotes.AddNote"/>
+            <reference ref="AgentReviewNotes.AddDirectoryNote"/>
+        </group>
     </actions>
 
     <extensions defaultExtensionNs="com.intellij">
