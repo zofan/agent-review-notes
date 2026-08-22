@@ -355,6 +355,10 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         }
         val realPath = runCatching { ReviewNoteTargetBoundary.resolve(projectRoot, path) }.getOrNull()
             ?: return NavigationOutcome.Warning("The note target no longer exists")
+        return ReviewNoteReadAction.compute { resolveModelNavigation(note, realPath) }
+    }
+
+    private fun resolveModelNavigation(note: ReviewNote, realPath: Path): NavigationOutcome {
         val file = LocalFileSystem.getInstance().findFileByNioFile(realPath)
             ?: return NavigationOutcome.Warning("The note file no longer exists")
         if (file.`is`(VFileProperty.SYMLINK)) {
