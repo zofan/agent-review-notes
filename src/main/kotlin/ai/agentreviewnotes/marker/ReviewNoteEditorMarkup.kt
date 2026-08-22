@@ -1,5 +1,6 @@
 package ai.agentreviewnotes.marker
 
+import ai.agentreviewnotes.presentation.ReviewNotePresentation
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.markup.EffectType
 import com.intellij.openapi.editor.markup.GutterIconRenderer
@@ -13,16 +14,17 @@ import java.awt.Font
 
 internal data class ReviewNoteEditorDecoration(
     val range: ReviewNoteHighlightRange,
+    val textAttributes: TextAttributes,
     val gutterIconRenderer: GutterIconRenderer? = null,
 )
 
 internal object ReviewNoteEditorMarkup {
     private val ownerKey = Key.create<Boolean>("agent.review.notes.range.highlighter")
 
-    private val textAttributes = TextAttributes(
+    fun textAttributes(presentation: ReviewNotePresentation): TextAttributes = TextAttributes(
         null,
-        JBColor(Color(255, 237, 145), Color(92, 72, 24)),
-        JBColor(Color(215, 142, 0), Color(230, 170, 45)),
+        JBColor(Color(presentation.lightBackgroundRgb), Color(presentation.darkBackgroundRgb)),
+        JBColor(Color(presentation.lightBorderRgb), Color(presentation.darkBorderRgb)),
         EffectType.ROUNDED_BOX,
         Font.PLAIN,
     )
@@ -39,7 +41,7 @@ internal object ReviewNoteEditorMarkup {
                 range.startOffset,
                 range.endOffset,
                 HighlighterLayer.SELECTION - 1,
-                textAttributes,
+                decoration.textAttributes,
                 HighlighterTargetArea.EXACT_RANGE,
             ).also { highlighter ->
                 highlighter.putUserData(ownerKey, true)

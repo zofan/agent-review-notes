@@ -1,13 +1,14 @@
 package ai.agentreviewnotes.marker
 
 import ai.agentreviewnotes.model.ReviewNote
+import ai.agentreviewnotes.presentation.ReviewNotePresentations
 import ai.agentreviewnotes.ui.ReviewNoteToolWindowService
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.IconLoader
 import javax.swing.Icon
 
 internal class ReviewNoteGutterIconRenderer(
@@ -15,8 +16,10 @@ internal class ReviewNoteGutterIconRenderer(
     private val note: ReviewNote,
 ) : GutterIconRenderer() {
     private val tooltip = "${note.kind.uppercase()}: ${note.message}"
+    private val presentation = ReviewNotePresentations.forWireValue(note.kind)
 
-    override fun getIcon(): Icon = AllIcons.General.BalloonInformation
+    override fun getIcon(): Icon =
+        IconLoader.getIcon(presentation.iconPath, ReviewNoteGutterIconRenderer::class.java)
 
     override fun getTooltipText(): String = tooltip
 

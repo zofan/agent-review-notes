@@ -15,10 +15,17 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "review_notes.py"
 SHA = "a" * 64
 
 
-def note(status: str, *, path: str = "src/main.py", kind: str = "bug", message: str = "Fix the bug") -> dict:
+def note(
+    status: str,
+    *,
+    path: str = "src/main.py",
+    kind: str = "bug",
+    message: str = "Fix the bug",
+    schema: str = "agent.review.note.v1",
+) -> dict:
     note_id = str(uuid.uuid4())
     return {
-        "schema": "agent.review.note.v1",
+        "schema": schema,
         "id": note_id,
         "status": status,
         "kind": kind,
@@ -74,6 +81,18 @@ class ReviewNotesCliTest(unittest.TestCase):
         )
         self.assertEqual(expect, completed.returncode, completed.stderr)
         return json.loads(completed.stdout)
+
+    def test_feature_kind_requires_v2_schema(self) -> None:
+        accepted = note("open", kind="feature", schema="agent.review.note.v2")
+        rejected = note("open", kind="feature")
+        self.write_note(accepted)
+        self.write_note(rejected)
+
+        result = self.run_cli("stats")
+
+        self.assertEqual(1, result["total"])
+        self.assertEqual({"feature": 1}, result["by_kind"])
+        self.assertEqual(1, result["rejected_count"])
 
     def test_list_returns_bounded_actionable_metadata_without_note_bodies(self) -> None:
         open_note = note("open", message="x" * 300)

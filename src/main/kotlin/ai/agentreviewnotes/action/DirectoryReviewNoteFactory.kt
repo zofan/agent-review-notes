@@ -18,6 +18,7 @@ internal object DirectoryReviewNoteFactory {
         id: String,
         createdAt: String,
     ): ReviewNote = ReviewNote(
+        schema = kind.schema,
         id = id,
         status = ReviewStatus.OPEN.wireValue,
         kind = kind.wireValue,

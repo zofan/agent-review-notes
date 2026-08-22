@@ -1,6 +1,7 @@
 package ai.agentreviewnotes.ui
 
 import ai.agentreviewnotes.model.ReviewKind
+import ai.agentreviewnotes.presentation.ReviewNotePresentations
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
@@ -62,7 +63,10 @@ class ReviewNoteDialog(
             cellHasFocus: Boolean,
         ): java.awt.Component {
             val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-            if (component is javax.swing.JLabel && value is ReviewKind) component.text = value.title
+            if (component is javax.swing.JLabel && value is ReviewKind) {
+                component.text = value.title
+                component.icon = ReviewNotePresentations.forKind(value).icon()
+            }
             return component
         }
     }

@@ -1,10 +1,12 @@
 package ai.agentreviewnotes.model
 
 const val REVIEW_NOTE_SCHEMA = "agent.review.note.v1"
+const val REVIEW_NOTE_SCHEMA_V2 = "agent.review.note.v2"
 
-enum class ReviewKind(val wireValue: String, val title: String) {
+enum class ReviewKind(val wireValue: String, val title: String, val schema: String = REVIEW_NOTE_SCHEMA) {
     BLOCKER("blocker", "Blocker"),
     BUG("bug", "Bug"),
+    FEATURE("feature", "Feature", REVIEW_NOTE_SCHEMA_V2),
     QUESTION("question", "Question"),
     SUGGESTION("suggestion", "Suggestion"),
 }

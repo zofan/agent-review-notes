@@ -1,6 +1,7 @@
 package ai.agentreviewnotes.store
 
 import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V2
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
@@ -10,7 +11,10 @@ import java.time.Instant
 internal object ReviewNoteAdmission {
     private val noteId = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
     private val sha256 = Regex("[0-9a-f]{64}")
-    private val reviewKinds = ReviewKind.entries.mapTo(HashSet(), ReviewKind::wireValue)
+    private val v1ReviewKinds = ReviewKind.entries
+        .filterNot { it == ReviewKind.FEATURE }
+        .mapTo(HashSet(), ReviewKind::wireValue)
+    private val v2ReviewKinds = ReviewKind.entries.mapTo(HashSet(), ReviewKind::wireValue)
     private val reviewStatuses = ReviewStatus.entries.mapTo(HashSet(), ReviewStatus::wireValue)
 
     fun validate(note: ReviewNote): ReviewNote {
@@ -28,9 +32,13 @@ internal object ReviewNoteAdmission {
         requireNotNull(anchor.suffix) { "Отсутствует anchor suffix" }
         val createdAt = requireNotNull(note.createdAt) { "Отсутствует время создания" }
 
-        require(schema == REVIEW_NOTE_SCHEMA) { "Неизвестная версия схемы" }
+        val allowedKinds = when (schema) {
+            REVIEW_NOTE_SCHEMA -> v1ReviewKinds
+            REVIEW_NOTE_SCHEMA_V2 -> v2ReviewKinds
+            else -> throw IllegalArgumentException("Неизвестная версия схемы")
+        }
         require(isValidId(id)) { "Некорректный id заметки" }
-        require(kind in reviewKinds) { "Некорректный тип заметки" }
+        require(kind in allowedKinds) { "Некорректный тип заметки" }
         require(status in reviewStatuses) { "Некорректный статус заметки" }
         require(message.isNotBlank()) { "Пустой текст заметки" }
         val isDirectory = location.target == "directory"

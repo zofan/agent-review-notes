@@ -9,6 +9,7 @@ import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewNoteKindFilter
 import ai.agentreviewnotes.model.ReviewNoteStatusFilter
 import ai.agentreviewnotes.model.ReviewStatus
+import ai.agentreviewnotes.presentation.ReviewNotePresentations
 import ai.agentreviewnotes.skill.AgentSkillInstallStatus
 import ai.agentreviewnotes.skill.AgentSkillInstaller
 import ai.agentreviewnotes.skill.BundledReviewSkill
@@ -380,7 +381,10 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             cellHasFocus: Boolean,
         ): Component {
             val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-            if (component is JLabel && value is KindFilterOption) component.text = value.title
+            if (component is JLabel && value is KindFilterOption) {
+                component.text = value.title
+                component.icon = value.kind?.let { kind -> ReviewNotePresentations.forKind(kind).icon() }
+            }
             return component
         }
     }
@@ -403,6 +407,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
                     "${value.location.workspacePath}:${value.location.startLine}"
                 }
                 component.text = "${value.kind.uppercase()} · ${value.status}$branch · $location$symbol — ${value.message}"
+                component.icon = ReviewNotePresentations.forWireValue(value.kind).icon()
                 component.toolTipText = value.message
             }
             return component

@@ -3,6 +3,7 @@ package ai.agentreviewnotes.marker
 import ai.agentreviewnotes.anchor.AnchorResult
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 import ai.agentreviewnotes.model.ReviewNote
+import ai.agentreviewnotes.presentation.ReviewNotePresentations
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Document
@@ -104,7 +105,12 @@ internal class ReviewNoteEditorHighlighter(private val project: Project) {
                 note.anchor.selection.length,
                 input.text.length,
             ) ?: return@mapNotNull null
-            ReviewNoteEditorDecoration(range, ReviewNoteGutterIconRenderer(project, note))
+            val presentation = ReviewNotePresentations.forWireValue(note.kind)
+            ReviewNoteEditorDecoration(
+                range,
+                ReviewNoteEditorMarkup.textAttributes(presentation),
+                ReviewNoteGutterIconRenderer(project, note),
+            )
         }
 
         runOnEdt {

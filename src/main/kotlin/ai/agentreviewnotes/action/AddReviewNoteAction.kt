@@ -3,6 +3,7 @@ package ai.agentreviewnotes.action
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 import ai.agentreviewnotes.model.NoteAnchor
 import ai.agentreviewnotes.model.NoteLocation
+import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
@@ -58,7 +59,7 @@ class AddReviewNoteAction : AnAction() {
         val document = editor.document
         val range = selectedOrCurrentLine(document, editor.selectionModel.selectionStart, editor.selectionModel.selectionEnd)
         val modificationStamp = document.modificationStamp
-        val kind = dialog.kind.wireValue
+        val kind = dialog.kind
         val message = dialog.message
         val store = project.service<ReviewNoteStore>()
         CompletableFuture.supplyAsync(
@@ -93,7 +94,7 @@ class AddReviewNoteAction : AnAction() {
         document: Document,
         filePath: String,
         range: TextRange,
-        kind: String,
+        kind: ReviewKind,
         message: String,
     ): ReviewNote {
         val text = document.text
@@ -139,9 +140,10 @@ class AddReviewNoteAction : AnAction() {
             symbol = symbol,
         )
         return ReviewNote(
+            schema = kind.schema,
             id = UUID.randomUUID().toString(),
             status = ReviewStatus.OPEN.wireValue,
-            kind = kind,
+            kind = kind.wireValue,
             message = message,
             location = location,
             anchor = anchor,

@@ -7,7 +7,7 @@ internal object ReviewNotesHelpContent {
 
         Open note details by double-clicking a note or pressing Enter. Select a note and press F4 to open its target. Click a gutter marker to reveal its note in the Agent Review tool window. The selected code range is highlighted in the editor, and files and directories with active notes have an orange badge in Project view.
 
-        Use the type and date range controls to filter the list; right-click a note or press Shift+F10 or the Menu key to edit, delete, resolve, or reopen it.
+        Use the type and date range controls to filter the list; right-click a note or press Shift+F10 or the Menu key to edit, delete, resolve, or reopen it. Use Feature for requested new behavior or a substantial capability extension; use Suggestion for a local optional improvement.
 
         Change the shortcut in Settings | Keymap | Agent Review Notes.
 

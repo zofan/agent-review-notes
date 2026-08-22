@@ -18,6 +18,7 @@ class ReviewNoteEditorMarkupTest {
         assertContains(source, "HighlighterLayer.SELECTION - 1")
         assertContains(source, "HighlighterTargetArea.EXACT_RANGE")
         assertContains(source, "EffectType.ROUNDED_BOX")
+        assertContains(source, "decoration.textAttributes")
         assertContains(source, "gutterIconRenderer")
     }
 }

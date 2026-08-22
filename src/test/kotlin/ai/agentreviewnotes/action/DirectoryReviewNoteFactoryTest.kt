@@ -8,6 +8,24 @@ import kotlin.test.assertEquals
 
 class DirectoryReviewNoteFactoryTest {
     @Test
+    fun `feature factory создает schema v2`() {
+        val note = DirectoryReviewNoteFactory.create(
+            workspacePath = "services/api",
+            vcsRoot = "services/api",
+            vcsPath = "",
+            head = "abc123",
+            branch = "main",
+            kind = ReviewKind.FEATURE,
+            message = "Добавить новый endpoint",
+            id = "123e4567-e89b-42d3-a456-426614174000",
+            createdAt = "2026-08-22T00:00:00Z",
+        )
+
+        assertEquals("agent.review.note.v2", note.schema)
+        assertEquals(note, ReviewNoteAdmission.validate(note))
+    }
+
+    @Test
     fun `factory создает admitted заметку на каталог`() {
         val note = DirectoryReviewNoteFactory.create(
             workspacePath = "services/api",

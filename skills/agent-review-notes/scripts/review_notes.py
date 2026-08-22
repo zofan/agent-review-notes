@@ -19,10 +19,15 @@ from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, NoReturn
 
-SCHEMA = "agent.review.note.v1"
+SCHEMA_V1 = "agent.review.note.v1"
+SCHEMA_V2 = "agent.review.note.v2"
 STATUSES = {"open", "in_progress", "resolved", "wont_fix", "needs_reanchor", "stale"}
 ACTIONABLE = {"open", "in_progress"}
-KINDS = {"blocker", "bug", "question", "suggestion"}
+KINDS_BY_SCHEMA = {
+    SCHEMA_V1: {"blocker", "bug", "question", "suggestion"},
+    SCHEMA_V2: {"blocker", "bug", "feature", "question", "suggestion"},
+}
+KINDS = set().union(*KINDS_BY_SCHEMA.values())
 ID_PATTERN = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 MAX_NOTE_BYTES = 1_048_576
@@ -182,7 +187,9 @@ def _safe_workspace_path(value: str) -> bool:
 
 
 def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
-    if _required_string(note, "schema") != SCHEMA:
+    schema = _required_string(note, "schema")
+    allowed_kinds = KINDS_BY_SCHEMA.get(schema)
+    if allowed_kinds is None:
         raise ValueError("unsupported review note schema")
     note_id = _required_string(note, "id")
     if note_id != expected_id or ID_PATTERN.fullmatch(note_id) is None:
@@ -191,8 +198,8 @@ def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
     kind = _required_string(note, "kind")
     if status_value not in STATUSES:
         raise ValueError("invalid review note status")
-    if kind not in KINDS:
-        raise ValueError("invalid review note kind")
+    if kind not in allowed_kinds:
+        raise ValueError("invalid review note kind for schema")
     _required_string(note, "message", nonempty=True)
     created_at = _required_string(note, "createdAt")
     _parse_instant(created_at)

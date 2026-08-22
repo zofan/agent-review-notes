@@ -1,5 +1,8 @@
 package ai.agentreviewnotes.store
 
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V2
+import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
 import com.google.gson.Gson
@@ -37,6 +40,9 @@ internal object ReviewNoteJson {
         val root = StrictJsonParser.parseObject(content)
         val current = decode(root)
         require(current.id == expectedId) { "Имя файла и id заметки не совпадают" }
+        if (kind == ReviewKind.FEATURE.wireValue && current.schema == REVIEW_NOTE_SCHEMA) {
+            root.addProperty("schema", REVIEW_NOTE_SCHEMA_V2)
+        }
         root.addProperty("kind", kind)
         root.addProperty("message", message)
         decode(root)

@@ -8,6 +8,20 @@ import kotlin.test.assertFailsWith
 
 class ReviewNoteJsonTest {
     @Test
+    fun `feature разрешён только в schema v2`() {
+        val v1Feature = validJson().replace("\"kind\": \"bug\"", "\"kind\": \"feature\"")
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteJson.decode(v1Feature, NOTE_ID)
+        }
+
+        val v2Feature = v1Feature.replace("agent.review.note.v1", "agent.review.note.v2")
+        val decoded = ReviewNoteJson.decode(v2Feature, NOTE_ID)
+
+        assertEquals("agent.review.note.v2", decoded.schema)
+        assertEquals("feature", decoded.kind)
+    }
+
+    @Test
     fun `смена статуса сохраняет неизвестные поля агента`() {
         val merged = ReviewNoteJson.mergeStatus(validJson(), NOTE_ID, ReviewStatus.RESOLVED)
         val root = JsonParser.parseString(merged).asJsonObject
@@ -114,6 +128,21 @@ class ReviewNoteJsonTest {
         assertFailsWith<IllegalArgumentException> {
             ReviewNoteJson.decode(root.toString(), NOTE_ID)
         }
+    }
+
+    @Test
+    fun `редактирование v1 заметки в feature повышает schema до v2`() {
+        val updated = ReviewNoteJson.mergeEditable(
+            content = validJson(),
+            expectedId = NOTE_ID,
+            kind = "feature",
+            message = "Добавить новый режим",
+        )
+        val root = JsonParser.parseString(updated).asJsonObject
+
+        assertEquals("agent.review.note.v2", root.get("schema").asString)
+        assertEquals("feature", root.get("kind").asString)
+        assertEquals("keep-me", root.getAsJsonObject("agentExtension").get("value").asString)
     }
 
     @Test

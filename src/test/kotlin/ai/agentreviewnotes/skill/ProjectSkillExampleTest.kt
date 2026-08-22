@@ -17,6 +17,8 @@ class ProjectSkillExampleTest {
         assertContains(content, "description: Use when processing Agent Review Notes")
         assertContains(content, ".idea/agent-review-notes/notes")
         assertContains(content, "agent.review.note.v1")
+        assertContains(content, "agent.review.note.v2")
+        assertContains(content, "`feature`")
         assertContains(content, "needs_reanchor")
         assertContains(content, "Do not edit source files")
         assertContains(content, "## Verification Checklist")

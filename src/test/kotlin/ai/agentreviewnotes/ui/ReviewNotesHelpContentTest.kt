@@ -17,6 +17,7 @@ class ReviewNotesHelpContentTest {
         assertContains(help, "gutter")
         assertContains(help, "highlighted in the editor")
         assertContains(help, "date range")
+        assertContains(help, "Feature")
         assertContains(help, ".idea/agent-review-notes/notes")
         assertContains(help, "Settings | Keymap | Agent Review Notes")
     }
