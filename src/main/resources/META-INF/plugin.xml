@@ -4,8 +4,25 @@
     <vendor>0x9171</vendor>
 
     <description><![CDATA[
-        Agent Review Notes stores local code review comments with exact anchors for AI agents.
-        Исходные файлы не меняются, а заметки остаются только в локальном каталоге проекта.
+        Agent Review Notes stores local code and directory review comments without changing project files.
+        <p>
+            Плагин сохраняет локальные замечания к коду и структуре проекта, не изменяя исходные
+            файлы и не отправляя данные в сеть.
+        </p>
+        <p>Плагин поддерживает:</p>
+        <ul>
+            <li>замечания на выделенный код, позицию каретки, файл или каталог;</li>
+            <li>точные anchors со snapshot, контекстом и Git revision;</li>
+            <li>привязку к Git repository и branch в multi-root проектах;</li>
+            <li>просмотр в tool window и навигацию из gutter;</li>
+            <li>фильтрацию по типу, изменение статуса, редактирование и удаление;</li>
+            <li>безопасную перепривязку после изменения файла или явный статус needs_reanchor;</li>
+            <li>открытый versioned JSON-контракт для интеграции с локальными AI-агентами.</li>
+        </ul>
+        <p>
+            Заметки хранятся только в локальном каталоге проекта. Плагин не запускает AI-агентов
+            самостоятельно и не добавляет служебные комментарии в production-код.
+        </p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
