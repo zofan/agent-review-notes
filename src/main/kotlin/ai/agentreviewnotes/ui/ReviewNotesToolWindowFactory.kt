@@ -3,6 +3,7 @@ package ai.agentreviewnotes.ui
 import ai.agentreviewnotes.anchor.AnchorResult
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 import ai.agentreviewnotes.model.ReviewNoteBranch
+import ai.agentreviewnotes.model.ReviewNoteCreatedAtFilter
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewNoteKindFilter
@@ -35,14 +36,20 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.FlowLayout
 import java.nio.file.Path
+import java.time.Instant
+import java.time.ZoneId
+import java.util.Date
 import java.util.concurrent.CompletionException
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
+import javax.swing.JSpinner
 import javax.swing.ListSelectionModel
+import javax.swing.SpinnerDateModel
 
 class ReviewNotesToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
@@ -66,6 +73,10 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         (listOf(KindFilterOption("Все типы", null)) +
             ReviewKind.entries.map { kind -> KindFilterOption(kind.title, kind) }).toTypedArray(),
     )
+    private val fromEnabled = JCheckBox("С:")
+    private val fromDate = JSpinner(SpinnerDateModel()).apply { editor = JSpinner.DateEditor(this, "yyyy-MM-dd") }
+    private val toEnabled = JCheckBox("По:")
+    private val toDate = JSpinner(SpinnerDateModel()).apply { editor = JSpinner.DateEditor(this, "yyyy-MM-dd") }
 
     @Volatile
     private var disposed = false
@@ -113,6 +124,20 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         reopenButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Rollback, "Открыть снова") {
             setSelectedStatus(ReviewStatus.OPEN)
         }
+        fromDate.isEnabled = false
+        toDate.isEnabled = false
+        fromDate.accessibleContext.accessibleName = "Дата начала периода"
+        toDate.accessibleContext.accessibleName = "Дата окончания периода"
+        fromEnabled.addActionListener {
+            fromDate.isEnabled = fromEnabled.isSelected
+            render(store.cachedList())
+        }
+        toEnabled.addActionListener {
+            toDate.isEnabled = toEnabled.isSelected
+            render(store.cachedList())
+        }
+        fromDate.addChangeListener { if (fromEnabled.isSelected) render(store.cachedList()) }
+        toDate.addChangeListener { if (toEnabled.isSelected) render(store.cachedList()) }
         return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
             kindFilter.renderer = KindFilterRenderer()
             kindFilter.toolTipText = "Фильтр замечаний по типу"
@@ -123,6 +148,10 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             add(ReviewNoteActionButtonFactory.create(AllIcons.Actions.Refresh, "Обновить заметки", ::refresh))
             add(kindLabel)
             add(kindFilter)
+            add(fromEnabled)
+            add(fromDate)
+            add(toEnabled)
+            add(toDate)
             add(navigateButton)
             add(editButton)
             add(deleteButton)
@@ -141,15 +170,30 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         val selectedId = notes.selectedValue?.id
         model.clear()
         val selectedKind = kindFilter.item.kind
+        val selectedFrom = selectedFrom()
+        val selectedTo = selectedTo()
         loaded.asSequence()
             .filter(::isVisibleOnCurrentBranch)
             .filter { note -> ReviewNoteKindFilter.isVisible(note.kind, selectedKind) }
+            .filter { note -> ReviewNoteCreatedAtFilter.isVisible(note.createdAt, selectedFrom, selectedTo) }
             .forEach(model::addElement)
         if (selectedId != null) {
             val selectedIndex = (0 until model.size()).firstOrNull { model.getElementAt(it).id == selectedId }
             if (selectedIndex != null) notes.selectedIndex = selectedIndex
         }
         updateButtons()
+    }
+
+    private fun selectedFrom(): Instant? {
+        if (!fromEnabled.isSelected) return null
+        val date = (fromDate.value as Date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+        return date.atStartOfDay(ZoneId.systemDefault()).toInstant()
+    }
+
+    private fun selectedTo(): Instant? {
+        if (!toEnabled.isSelected) return null
+        val date = (toDate.value as Date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+        return date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusNanos(1)
     }
 
     private fun selectNote(noteId: String) {
