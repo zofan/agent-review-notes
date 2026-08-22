@@ -1,7 +1,7 @@
-<idea-plugin>
+  <idea-plugin>
     <id>ai.agentreviewnotes</id>
     <name>Agent Review Notes</name>
-    <vendor>AI Project</vendor>
+    <vendor>0x9171</vendor>
 
     <description><![CDATA[
         Agent Review Notes stores local code review comments with exact anchors for AI agents.
