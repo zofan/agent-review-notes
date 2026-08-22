@@ -42,6 +42,12 @@
                 description="Create a local review note for the selected directory">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </action>
+        <action id="AgentReviewNotes.Help"
+                class="ai.agentreviewnotes.action.ReviewNotesHelpAction"
+                text="Agent Review Notes Help"
+                description="Show usage instructions and tips for Agent Review Notes">
+            <add-to-group group-id="HelpMenu" anchor="last"/>
+        </action>
         <group id="AgentReviewNotes.KeymapGroup" text="Agent Review Notes" popup="false">
             <reference ref="AgentReviewNotes.AddNote"/>
             <reference ref="AgentReviewNotes.AddDirectoryNote"/>
