@@ -19,6 +19,20 @@ class AgentSkillInstallerTest {
     }
 
     @Test
+    fun `Codex skill directory is selected`() = withTempProject { project ->
+        val existing = project.resolve(".codex/skills").createDirectories()
+
+        assertEquals(existing, AgentSkillInstaller.resolveSkillRoot(project))
+    }
+
+    @Test
+    fun `Hermes skill directory is selected`() = withTempProject { project ->
+        val existing = project.resolve(".hermes/skills").createDirectories()
+
+        assertEquals(existing, AgentSkillInstaller.resolveSkillRoot(project))
+    }
+
+    @Test
     fun `standard agents directory is used when project has no skill directory`() = withTempProject { project ->
         assertEquals(project.resolve(".agents/skills"), AgentSkillInstaller.resolveSkillRoot(project))
     }

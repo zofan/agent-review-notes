@@ -20,6 +20,7 @@ internal data class AgentSkillInstallResult(
 internal object AgentSkillInstaller {
     private val candidateRoots = listOf(
         ".agents/skills",
+        ".codex/skills",
         ".claude/skills",
         ".cursor/skills",
         ".github/skills",
