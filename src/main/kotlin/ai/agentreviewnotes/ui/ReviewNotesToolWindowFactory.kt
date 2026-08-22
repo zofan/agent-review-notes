@@ -91,7 +91,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         notes.selectionMode = ListSelectionModel.SINGLE_SELECTION
         notes.cellRenderer = ReviewNoteRenderer()
         notes.addListSelectionListener { updateButtons() }
-        ReviewNoteListActivation.install(notes, ::navigateToSelected)
+        ReviewNoteListActivation.install(notes, openDetails = ::viewSelected, navigate = ::navigateToSelected)
         toolWindowService.addSelectionListener(this, ::selectNote)
 
         add(JBScrollPane(notes), BorderLayout.CENTER)
@@ -114,20 +114,17 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         refresh()
     }
 
-    private lateinit var viewButton: JButton
-    private lateinit var navigateButton: JButton
     private lateinit var actionsMenu: ReviewNoteActionsMenu
     private lateinit var installSkillButton: JButton
 
     private fun createToolbar(): JPanel {
-        viewButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Preview, "View note", ::viewSelected)
-        navigateButton = ReviewNoteActionButtonFactory.create(AllIcons.Actions.Forward, "Go to note target", ::navigateToSelected)
         actionsMenu = ReviewNoteActionsMenuFactory.create(
             onEdit = ::editSelected,
             onDelete = ::deleteSelected,
             onResolve = { setSelectedStatus(ReviewStatus.RESOLVED) },
             onReopen = { setSelectedStatus(ReviewStatus.OPEN) },
         )
+        ReviewNoteContextMenu.install(notes) { x, y -> actionsMenu.popup.show(notes, x, y) }
         installSkillButton = AgentSkillInstallButtonFactory.create(::installSkill)
         return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
             kindFilter.renderer = KindFilterRenderer()
@@ -147,9 +144,6 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             add(kindFilter)
             add(dateFilter)
             add(statusFilter)
-            add(viewButton)
-            add(navigateButton)
-            add(actionsMenu.button)
             add(installSkillButton)
         }
     }
@@ -260,9 +254,6 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private fun updateButtons() {
         val selected = notes.selectedValue
-        viewButton.isEnabled = selected != null
-        navigateButton.isEnabled = selected != null
-        actionsMenu.button.isEnabled = selected != null
         actionsMenu.editItem.isEnabled = selected != null
         actionsMenu.deleteItem.isEnabled = selected != null
         actionsMenu.resolveItem.isEnabled = selected != null && selected.status != ReviewStatus.RESOLVED.wireValue

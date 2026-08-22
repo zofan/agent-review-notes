@@ -10,6 +10,10 @@ class ReviewNotesHelpContentTest {
 
         assertContains(help, "Ctrl+Alt+R")
         assertContains(help, "double-click")
+        assertContains(help, "F4")
+        assertContains(help, "right-click")
+        assertContains(help, "Shift+F10")
+        assertContains(help, "Menu key")
         assertContains(help, "gutter")
         assertContains(help, "date range")
         assertContains(help, ".idea/agent-review-notes/notes")

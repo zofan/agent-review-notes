@@ -1,12 +1,9 @@
 package ai.agentreviewnotes.ui
 
-import java.awt.Insets
-import javax.swing.JButton
 import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
 
 internal data class ReviewNoteActionsMenu(
-    val button: JButton,
     val popup: JPopupMenu,
     val editItem: JMenuItem,
     val deleteItem: JMenuItem,
@@ -26,14 +23,7 @@ internal object ReviewNoteActionsMenuFactory {
         val deleteItem = popup.actionItem("Delete note", onDelete)
         val resolveItem = popup.actionItem("Resolve note", onResolve)
         val reopenItem = popup.actionItem("Reopen note", onReopen)
-        val button = JButton("⋯").apply {
-            toolTipText = "More note actions"
-            accessibleContext.accessibleName = toolTipText
-            margin = Insets(0, 6, 0, 6)
-            isFocusable = false
-            addActionListener { popup.show(this, 0, height) }
-        }
-        return ReviewNoteActionsMenu(button, popup, editItem, deleteItem, resolveItem, reopenItem)
+        return ReviewNoteActionsMenu(popup, editItem, deleteItem, resolveItem, reopenItem)
     }
 
     private fun JPopupMenu.actionItem(title: String, action: () -> Unit): JMenuItem =

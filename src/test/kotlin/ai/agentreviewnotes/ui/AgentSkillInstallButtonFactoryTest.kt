@@ -10,9 +10,9 @@ class AgentSkillInstallButtonFactoryTest {
         var invoked = false
         val button = AgentSkillInstallButtonFactory.create { invoked = true }
 
-        assertEquals("Add to project", button.text)
+        assertEquals("Install SKILL", button.text)
         assertEquals("Install the Agent Review Notes skill in this project", button.toolTipText)
-        assertEquals("Add Agent Review Notes skill to project", button.accessibleContext.accessibleName)
+        assertEquals("Install Agent Review Notes SKILL", button.accessibleContext.accessibleName)
         button.doClick()
         assertTrue(invoked)
     }
