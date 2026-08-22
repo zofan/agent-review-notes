@@ -2,6 +2,7 @@ package ai.agentreviewnotes.startup
 
 import ai.agentreviewnotes.store.ReviewNoteStore
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
+import com.intellij.ide.projectView.ProjectView
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -15,6 +16,7 @@ import git4idea.repo.GitRepositoryChangeListener
 class ReviewNotesProjectActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
         val store = project.service<ReviewNoteStore>()
+        store.addListener(project) { refreshProjectView(project) }
         refreshAndRestart(project, store)
         val connection = project.messageBus.connect(project)
         connection.subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
@@ -35,6 +37,13 @@ class ReviewNotesProjectActivity : ProjectActivity {
     private fun refreshAndRestart(project: Project, store: ReviewNoteStore) {
         store.refreshAsync().thenRun {
             restartDaemon(project, CACHE_RESTART_REASON)
+        }
+    }
+
+    private fun refreshProjectView(project: Project) {
+        if (project.isDisposed) return
+        ApplicationManager.getApplication().invokeLater {
+            if (!project.isDisposed) ProjectView.getInstance(project).refresh()
         }
     }
 

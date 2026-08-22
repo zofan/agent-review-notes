@@ -51,5 +51,6 @@
         <postStartupActivity implementation="ai.agentreviewnotes.startup.ReviewNotesProjectActivity"/>
         <codeInsight.lineMarkerProvider language="ANY"
                                         implementationClass="ai.agentreviewnotes.marker.ReviewNoteLineMarkerProvider"/>
+        <projectViewNodeDecorator implementation="ai.agentreviewnotes.projectview.ReviewNoteProjectViewDecorator"/>
     </extensions>
 </idea-plugin>
