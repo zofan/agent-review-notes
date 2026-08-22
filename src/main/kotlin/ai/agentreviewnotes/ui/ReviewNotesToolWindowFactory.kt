@@ -7,6 +7,7 @@ import ai.agentreviewnotes.model.ReviewNoteCreatedAtFilter
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewNoteKindFilter
+import ai.agentreviewnotes.model.ReviewNoteStatusFilter
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.skill.AgentSkillInstallStatus
 import ai.agentreviewnotes.skill.AgentSkillInstaller
@@ -63,6 +64,10 @@ class ReviewNotesToolWindowFactory : ToolWindowFactory {
 
 private data class KindFilterOption(val title: String, val kind: ReviewKind?)
 
+private data class StatusFilterOption(val title: String, val status: ReviewStatus?) {
+    override fun toString(): String = title
+}
+
 private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayout()), com.intellij.openapi.Disposable {
     private val store = project.service<ReviewNoteStore>()
     private val toolWindowService = project.service<ReviewNoteToolWindowService>()
@@ -73,6 +78,11 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             ReviewKind.entries.map { kind -> KindFilterOption(kind.title, kind) }).toTypedArray(),
     )
     private val dateFilter = ComboBox(ReviewNoteDateFilterPreset.entries.toTypedArray())
+    private val statusFilter = ComboBox(
+        (listOf(StatusFilterOption("All statuses", null)) + ReviewStatus.entries.map { status ->
+            StatusFilterOption(status.wireValue.replace('_', ' ').replaceFirstChar { it.uppercase() }, status)
+        }).toTypedArray(),
+    )
 
     @Volatile
     private var disposed = false
@@ -127,12 +137,16 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             dateFilter.toolTipText = "Filter notes by creation date"
             dateFilter.accessibleContext.accessibleName = "Creation date"
             dateFilter.addActionListener { render(store.cachedList()) }
+            statusFilter.toolTipText = "Filter notes by status"
+            statusFilter.accessibleContext.accessibleName = "Note status"
+            statusFilter.addActionListener { render(store.cachedList()) }
             val kindLabel = JLabel("Type:")
             kindLabel.labelFor = kindFilter
             add(ReviewNoteActionButtonFactory.create(AllIcons.Actions.Refresh, "Refresh notes", ::refresh))
             add(kindLabel)
             add(kindFilter)
             add(dateFilter)
+            add(statusFilter)
             add(viewButton)
             add(navigateButton)
             add(actionsMenu.button)
@@ -199,10 +213,12 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         val selectedId = notes.selectedValue?.id
         model.clear()
         val selectedKind = kindFilter.item.kind
+        val selectedStatus = statusFilter.item.status
         val dateBounds = dateFilter.item.bounds(LocalDate.now(), ZoneId.systemDefault())
         loaded.asSequence()
             .filter(::isVisibleOnCurrentBranch)
             .filter { note -> ReviewNoteKindFilter.isVisible(note.kind, selectedKind) }
+            .filter { note -> ReviewNoteStatusFilter.isVisible(note.status, selectedStatus) }
             .filter { note -> ReviewNoteCreatedAtFilter.isVisible(note.createdAt, dateBounds.from, dateBounds.to) }
             .forEach(model::addElement)
         if (selectedId != null) {
