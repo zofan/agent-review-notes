@@ -72,11 +72,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         notes.selectionMode = ListSelectionModel.SINGLE_SELECTION
         notes.cellRenderer = ReviewNoteRenderer()
         notes.addListSelectionListener { updateButtons() }
-        notes.addMouseListener(object : java.awt.event.MouseAdapter() {
-            override fun mouseClicked(event: java.awt.event.MouseEvent) {
-                if (event.clickCount == 2) navigateToSelected()
-            }
-        })
+        ReviewNoteListActivation.install(notes, ::navigateToSelected)
 
         add(JBScrollPane(notes), BorderLayout.CENTER)
         add(createToolbar(), BorderLayout.NORTH)
