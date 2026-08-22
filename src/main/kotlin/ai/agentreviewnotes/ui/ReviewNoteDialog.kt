@@ -13,7 +13,11 @@ import java.awt.Dimension
 import javax.swing.JComponent
 import javax.swing.JPanel
 
-class ReviewNoteDialog(project: Project) : DialogWrapper(project) {
+class ReviewNoteDialog(
+    project: Project,
+    initialKind: ReviewKind? = null,
+    initialMessage: String = "",
+) : DialogWrapper(project) {
     private val kindBox = ComboBox(ReviewKind.entries.toTypedArray())
     private val messageArea = JBTextArea(6, 52)
 
@@ -24,8 +28,10 @@ class ReviewNoteDialog(project: Project) : DialogWrapper(project) {
         get() = messageArea.text.trim()
 
     init {
-        title = "Замечание для AI-агента"
+        title = if (initialKind == null) "Замечание для AI-агента" else "Изменить замечание"
         kindBox.renderer = ReviewKindRenderer()
+        if (initialKind != null) kindBox.selectedItem = initialKind
+        messageArea.text = initialMessage
         messageArea.lineWrap = true
         messageArea.wrapStyleWord = true
         init()

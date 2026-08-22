@@ -33,6 +33,16 @@ internal object ReviewNoteJson {
         return requireWithinLimit(gson.toJson(root))
     }
 
+    fun mergeEditable(content: String, expectedId: String, kind: String, message: String): String {
+        val root = StrictJsonParser.parseObject(content)
+        val current = decode(root)
+        require(current.id == expectedId) { "Имя файла и id заметки не совпадают" }
+        root.addProperty("kind", kind)
+        root.addProperty("message", message)
+        decode(root)
+        return requireWithinLimit(gson.toJson(root))
+    }
+
     private fun decode(root: JsonObject): ReviewNote {
         validateShape(root)
         return ReviewNoteAdmission.validate(gson.fromJson(root, ReviewNote::class.java))

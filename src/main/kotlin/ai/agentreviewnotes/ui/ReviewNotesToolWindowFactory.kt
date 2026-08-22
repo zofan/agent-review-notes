@@ -3,6 +3,7 @@ package ai.agentreviewnotes.ui
 import ai.agentreviewnotes.anchor.AnchorResult
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 import ai.agentreviewnotes.model.ReviewNoteBranch
+import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
@@ -86,16 +87,22 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     }
 
     private lateinit var navigateButton: JButton
+    private lateinit var editButton: JButton
+    private lateinit var deleteButton: JButton
     private lateinit var resolveButton: JButton
     private lateinit var reopenButton: JButton
 
     private fun createToolbar(): JPanel {
         navigateButton = JButton("Перейти").apply { addActionListener { navigateToSelected() } }
+        editButton = JButton("Изменить").apply { addActionListener { editSelected() } }
+        deleteButton = JButton("Удалить").apply { addActionListener { deleteSelected() } }
         resolveButton = JButton("Решено").apply { addActionListener { setSelectedStatus(ReviewStatus.RESOLVED) } }
         reopenButton = JButton("Открыть снова").apply { addActionListener { setSelectedStatus(ReviewStatus.OPEN) } }
         return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
             add(JButton("Обновить").apply { addActionListener { refresh() } })
             add(navigateButton)
+            add(editButton)
+            add(deleteButton)
             add(resolveButton)
             add(reopenButton)
         }
@@ -145,8 +152,34 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     private fun updateButtons() {
         val selected = notes.selectedValue
         navigateButton.isEnabled = selected != null
+        editButton.isEnabled = selected != null
+        deleteButton.isEnabled = selected != null
         resolveButton.isEnabled = selected != null && selected.status != ReviewStatus.RESOLVED.wireValue
         reopenButton.isEnabled = selected != null && selected.status != ReviewStatus.OPEN.wireValue
+    }
+
+    private fun editSelected() {
+        val note = notes.selectedValue ?: return
+        val kind = ReviewKind.entries.first { it.wireValue == note.kind }
+        val dialog = ReviewNoteDialog(project, initialKind = kind, initialMessage = note.message)
+        if (!dialog.showAndGet()) return
+        store.updateAsync(note.id, dialog.kind, dialog.message).whenComplete { _, error ->
+            if (!isUnavailable() && error != null) showError("Не удалось изменить заметку", error)
+        }
+    }
+
+    private fun deleteSelected() {
+        val note = notes.selectedValue ?: return
+        val answer = Messages.showYesNoDialog(
+            project,
+            "Удалить замечание ${note.id}?",
+            "Удалить замечание",
+            Messages.getWarningIcon(),
+        )
+        if (answer != Messages.YES) return
+        store.deleteAsync(note.id).whenComplete { _, error ->
+            if (!isUnavailable() && error != null) showError("Не удалось удалить заметку", error)
+        }
     }
 
     private fun navigateToSelected() {

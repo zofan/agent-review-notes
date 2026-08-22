@@ -1,5 +1,6 @@
 package ai.agentreviewnotes.store
 
+import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
 import com.intellij.openapi.Disposable
@@ -28,6 +29,7 @@ class ReviewNoteStore(private val project: Project) {
     private val ioLock = ReentrantLock()
     private val pendingStatuses = ConcurrentHashMap.newKeySet<String>()
     private val executor = AppExecutorUtil.getAppExecutorService()
+    private val atomicDelete = AtomicReviewNoteDelete()
 
     @Volatile
     private var snapshot: List<ReviewNote> = emptyList()
@@ -65,6 +67,20 @@ class ReviewNoteStore(private val project: Project) {
             pendingStatuses.remove(operation)
             completeOperation(error)
         }
+    }
+
+    fun updateAsync(id: String, kind: ReviewKind, message: String): CompletableFuture<Void> =
+        mutateAsync {
+            mergeFile(id) { content ->
+                ReviewNoteJson.mergeEditable(content, id, kind.wireValue, message)
+            }
+        }
+
+    fun deleteAsync(id: String): CompletableFuture<Void> = mutateAsync {
+        val directory = requireNotNull(notesDirectory(create = false)) { "Каталог заметок не существует" }
+        val target = notePath(directory, id)
+        val leftover = atomicDelete.delete(target)
+        if (leftover != null) log.warn("Заметка удалена, но карантин не очищен: $leftover")
     }
 
     fun addListener(parent: Disposable, listener: () -> Unit) {
@@ -109,11 +125,16 @@ class ReviewNoteStore(private val project: Project) {
     }
 
     private fun mergeStatus(id: String, status: ReviewStatus) {
+        mergeFile(id) { content -> ReviewNoteJson.mergeStatus(content, id, status) }
+    }
+
+    private fun mergeFile(id: String, transform: (String) -> String) {
         val directory = requireNotNull(notesDirectory(create = false)) { "Каталог заметок не существует" }
         val target = notePath(directory, id)
+        require(Files.isRegularFile(target, NOFOLLOW_LINKS)) { "Заметка $id не существует или небезопасна" }
         repeat(MAX_STATUS_RETRIES) {
             val original = BoundedFileReader.readBytes(target)
-            val content = ReviewNoteJson.mergeStatus(BoundedFileReader.decodeUtf8(original), id, status)
+            val content = transform(BoundedFileReader.decodeUtf8(original))
             val temporary = writeTemporary(directory, id, content)
             try {
                 val latest = BoundedFileReader.readBytes(target)
@@ -126,6 +147,17 @@ class ReviewNoteStore(private val project: Project) {
         }
         throw ConcurrentModificationException("Заметка $id одновременно изменяется внешним процессом")
     }
+
+    private fun mutateAsync(mutation: () -> Unit): CompletableFuture<Void> =
+        CompletableFuture.runAsync(
+            {
+                ioLock.withLock {
+                    mutation()
+                    loadAndCache()
+                }
+            },
+            executor,
+        ).whenComplete { _, error -> completeOperation(error) }
 
     private fun writeTemporary(directory: Path, id: String, content: String): Path {
         ReviewNoteAdmission.requireValidId(id)

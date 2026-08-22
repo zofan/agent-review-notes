@@ -116,6 +116,33 @@ class ReviewNoteJsonTest {
         }
     }
 
+    @Test
+    fun `редактирование сохраняет неизвестные поля`() {
+        val root = JsonParser.parseString(validJson()).asJsonObject
+        root.addProperty("futureField", "preserve-me")
+        root.getAsJsonObject("anchor").addProperty("futureAnchor", true)
+
+        val updated = ReviewNoteJson.mergeEditable(
+            content = root.toString(),
+            expectedId = NOTE_ID,
+            kind = "suggestion",
+            message = "Новый текст",
+        )
+        val updatedRoot = JsonParser.parseString(updated).asJsonObject
+
+        assertEquals("suggestion", updatedRoot.get("kind").asString)
+        assertEquals("Новый текст", updatedRoot.get("message").asString)
+        assertEquals("preserve-me", updatedRoot.get("futureField").asString)
+        assertEquals(true, updatedRoot.getAsJsonObject("anchor").get("futureAnchor").asBoolean)
+    }
+
+    @Test
+    fun `редактирование отклоняет пустой текст`() {
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteJson.mergeEditable(validJson(), NOTE_ID, "bug", "  ")
+        }
+    }
+
     private fun validJson(): String =
         """
         {
