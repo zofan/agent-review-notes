@@ -37,7 +37,7 @@ intellijPlatform {
         }
 
         vendor {
-            name = "AI Project"
+            name = "0x9171"
         }
     }
 }
