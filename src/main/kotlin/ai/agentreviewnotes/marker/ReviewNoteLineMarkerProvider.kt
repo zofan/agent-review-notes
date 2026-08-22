@@ -6,11 +6,13 @@ import ai.agentreviewnotes.model.ReviewNoteBranch
 import ai.agentreviewnotes.model.ReviewStatus
 import ai.agentreviewnotes.store.ReviewNoteStore
 import ai.agentreviewnotes.store.ReviewNotePathPolicy
+import ai.agentreviewnotes.ui.ReviewNoteToolWindowService
+import com.intellij.codeInsight.daemon.GutterIconNavigationHandler
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProvider
-import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.service
+import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
 import git4idea.repo.GitRepositoryManager
@@ -57,10 +59,18 @@ class ReviewNoteLineMarkerProvider : LineMarkerProvider {
             val offset = (anchor as AnchorResult.Resolved).offset
             val target = elements.firstOrNull { element -> element.textRange.containsOffset(offset) }
                 ?: return@forEach
-            val marker = NavigationGutterIconBuilder.create(AllIcons.General.BalloonInformation)
-                .setTooltipText("${note.kind.uppercase()}: ${note.message}")
-                .setTarget(target)
-                .createLineMarkerInfo(target)
+            val tooltip = "${note.kind.uppercase()}: ${note.message}"
+            val marker = LineMarkerInfo(
+                target,
+                target.textRange,
+                AllIcons.General.BalloonInformation,
+                { tooltip },
+                GutterIconNavigationHandler { _, _ ->
+                    project.service<ReviewNoteToolWindowService>().showNote(note.id)
+                },
+                GutterIconRenderer.Alignment.LEFT,
+                { "Открыть замечание: $tooltip" },
+            )
             result.add(marker)
         }
     }

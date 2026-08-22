@@ -58,6 +58,7 @@ private data class KindFilterOption(val title: String, val kind: ReviewKind?)
 
 private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayout()), com.intellij.openapi.Disposable {
     private val store = project.service<ReviewNoteStore>()
+    private val toolWindowService = project.service<ReviewNoteToolWindowService>()
     private val model = DefaultListModel<ReviewNote>()
     private val notes = JBList(model)
     private val kindFilter = ComboBox(
@@ -73,6 +74,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         notes.cellRenderer = ReviewNoteRenderer()
         notes.addListSelectionListener { updateButtons() }
         ReviewNoteListActivation.install(notes, ::navigateToSelected)
+        toolWindowService.addSelectionListener(this, ::selectNote)
 
         add(JBScrollPane(notes), BorderLayout.CENTER)
         add(createToolbar(), BorderLayout.NORTH)
@@ -143,6 +145,13 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             if (selectedIndex != null) notes.selectedIndex = selectedIndex
         }
         updateButtons()
+    }
+
+    private fun selectNote(noteId: String) {
+        val index = (0 until model.size()).firstOrNull { model.getElementAt(it).id == noteId } ?: return
+        notes.selectedIndex = index
+        notes.ensureIndexIsVisible(index)
+        notes.requestFocusInWindow()
     }
 
     private fun isVisibleOnCurrentBranch(note: ReviewNote): Boolean {
