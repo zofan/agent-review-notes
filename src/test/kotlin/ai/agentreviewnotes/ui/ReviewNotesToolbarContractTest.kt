@@ -19,6 +19,8 @@ class ReviewNotesToolbarContractTest {
         assertFalse(source.contains("actionsMenu.button"))
         assertFalse(source.contains("JLabel(\"Type:\")"))
         assertFalse(source.contains("add(kindLabel)"))
+        assertTrue(source.contains("ReviewNoteToolbarWrapLayout(FlowLayout.LEFT"))
+        assertFalse(source.contains("JPanel(FlowLayout(FlowLayout.LEFT))"))
         assertTrue(source.contains("add(kindFilter)"))
         assertTrue(source.contains("add(branchFilter)"))
         assertTrue(source.contains("add(repositoryFilter)"))

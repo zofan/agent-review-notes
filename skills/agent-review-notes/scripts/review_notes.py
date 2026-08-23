@@ -644,7 +644,7 @@ def _command_resolve(args: argparse.Namespace, notes_directory: Path) -> dict[st
         if note["status"] not in ACTIONABLE:
             raise ValueError(f"status {note['status']} is not actionable")
         note["status"] = "resolved"
-        resolution = dict(note["resolution"] or {})
+        resolution = dict(note.get("resolution") or {})
         resolution.update(
             summary=args.summary.strip(),
             resolvedAt=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),

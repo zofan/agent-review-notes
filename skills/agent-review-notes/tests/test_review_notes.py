@@ -223,6 +223,17 @@ class ReviewNotesCliTest(unittest.TestCase):
         self.assertEqual("b" * 64, stored["resolution"]["fileSha256"])
         self.assertEqual({"preserve": True}, stored["extension"])
 
+    def test_resolve_accepts_plugin_note_with_omitted_null_resolution(self) -> None:
+        value = note("in_progress", kind="feature", schema="agent.review.note.v2")
+        value.pop("resolution")
+        note_id = self.write_note(value)
+
+        resolved = self.run_cli("resolve", note_id, "--summary", "OpenCode support added")
+
+        stored = json.loads((self.notes / f"{note_id}.json").read_text(encoding="utf-8"))
+        self.assertEqual("resolved", resolved["notes"][0]["status"])
+        self.assertEqual("OpenCode support added", stored["resolution"]["summary"])
+
     def test_resolve_preserves_unknown_nested_resolution_fields(self) -> None:
         value = note("open")
         value["resolution"] = {

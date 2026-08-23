@@ -121,7 +121,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         )
         ReviewNoteContextMenu.install(notes) { x, y -> actionsMenu.popup.show(notes, x, y) }
         installSkillButton = AgentSkillInstallButtonFactory.create(::installSkill)
-        return JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+        return JPanel(ReviewNoteToolbarWrapLayout(FlowLayout.LEFT, hgap = 5, vgap = 5)).apply {
             kindFilter.renderer = KindFilterRenderer()
             kindFilter.toolTipText = "Filter notes by type"
             kindFilter.accessibleContext.accessibleName = "Note type"

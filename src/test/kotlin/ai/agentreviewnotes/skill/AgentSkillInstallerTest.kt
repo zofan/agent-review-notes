@@ -26,6 +26,13 @@ class AgentSkillInstallerTest {
     }
 
     @Test
+    fun `OpenCode skill directory is selected`() = withTempProject { project ->
+        val existing = project.resolve(".opencode/skills").createDirectories()
+
+        assertEquals(existing, AgentSkillInstaller.resolveSkillRoot(project))
+    }
+
+    @Test
     fun `Hermes skill directory is selected`() = withTempProject { project ->
         val existing = project.resolve(".hermes/skills").createDirectories()
 

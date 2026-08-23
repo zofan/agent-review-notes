@@ -1,7 +1,7 @@
 ---
 name: agent-review-notes
 description: Use when processing Agent Review Notes in a local project. Query bounded actionable batches before loading complete note bodies.
-version: 1.2.0
+version: 1.2.1
 author: Agent Review Notes
 license: MIT
 metadata:
@@ -171,7 +171,9 @@ Required top-level fields:
 - `status`: `open`, `in_progress`, `resolved`, `wont_fix`, `needs_reanchor`, or `stale`;
 - `kind`: `blocker`, `bug`, `feature` (v2 only), `question`, or `suggestion`;
 - `message` and `createdAt`;
-- `location`, `anchor`, and nullable `resolution`.
+- `location` and `anchor`;
+- `resolution`, nullable or omitted while unresolved. The mutation commands normalize it to a complete object
+  when resolving while preserving any existing unknown nested fields.
 
 `location.workspacePath` is the lexical workspace path persisted exactly as projected in the project. It
 must be project-relative, must not be absolute or contain `..`, and must remain lexically inside the

@@ -30,6 +30,7 @@ internal object AgentSkillInstaller {
     private val candidateRoots = listOf(
         ".agents/skills",
         ".codex/skills",
+        ".opencode/skills",
         ".claude/skills",
         ".cursor/skills",
         ".github/skills",
