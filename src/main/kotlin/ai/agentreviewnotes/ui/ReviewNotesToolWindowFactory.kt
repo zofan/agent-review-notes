@@ -2,7 +2,7 @@ package ai.agentreviewnotes.ui
 
 import ai.agentreviewnotes.anchor.AnchorResult
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
-import ai.agentreviewnotes.model.ReviewNoteBranch
+
 import ai.agentreviewnotes.model.ReviewNoteCreatedAtFilter
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
@@ -15,27 +15,26 @@ import ai.agentreviewnotes.skill.AgentSkillInstaller
 import ai.agentreviewnotes.skill.BundledReviewSkill
 import ai.agentreviewnotes.store.ReviewNoteStore
 import ai.agentreviewnotes.store.ReviewNotePathPolicy
+import ai.agentreviewnotes.store.ReviewNoteRepositoryMapping
 import ai.agentreviewnotes.store.ReviewNoteTargetBoundary
 import com.intellij.icons.AllIcons
+import com.intellij.ide.projectView.ProjectView
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
+import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
-import com.intellij.ide.projectView.ProjectView
-import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VFileProperty
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.content.ContentFactory
-import git4idea.repo.GitRepository
-import git4idea.repo.GitRepositoryChangeListener
 import git4idea.repo.GitRepositoryManager
 import java.awt.BorderLayout
 import java.awt.Component
@@ -84,9 +83,13 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             StatusFilterOption(status.wireValue.replace('_', ' ').replaceFirstChar { it.uppercase() }, status)
         }).toTypedArray(),
     )
+    private val branchFilter = ComboBox(arrayOf(ReviewNoteBranchFilter.all))
+    private val repositoryFilter = ComboBox(arrayOf(ReviewNoteRepositoryFilter.all))
 
     @Volatile
     private var disposed = false
+
+    private var updatingFacetFilters = false
 
     init {
         notes.selectionMode = ListSelectionModel.SINGLE_SELECTION
@@ -103,15 +106,6 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
                 if (!isUnavailable()) render(store.cachedList())
             }
         }
-        project.messageBus.connect(this).subscribe(
-            GitRepository.GIT_REPO_CHANGE,
-            GitRepositoryChangeListener {
-                if (isUnavailable()) return@GitRepositoryChangeListener
-                ApplicationManager.getApplication().invokeLater {
-                    if (!isUnavailable()) render(store.cachedList())
-                }
-            },
-        )
         refresh()
     }
 
@@ -138,10 +132,22 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             statusFilter.toolTipText = "Filter notes by status"
             statusFilter.accessibleContext.accessibleName = "Note status"
             statusFilter.addActionListener { render(store.cachedList()) }
+            branchFilter.toolTipText = "Filter notes by branch"
+            branchFilter.accessibleContext.accessibleName = "Note branch"
+            branchFilter.addActionListener {
+                if (!updatingFacetFilters) render(store.cachedList())
+            }
+            repositoryFilter.toolTipText = "Filter notes by repository"
+            repositoryFilter.accessibleContext.accessibleName = "Note repository"
+            repositoryFilter.addActionListener {
+                if (!updatingFacetFilters) render(store.cachedList())
+            }
             add(ReviewNoteActionButtonFactory.createCompact(AllIcons.Actions.Refresh, "Refresh notes", ::refresh))
             add(kindFilter)
             add(dateFilter)
             add(statusFilter)
+            add(branchFilter)
+            add(repositoryFilter)
             add(installSkillButton)
         }
     }
@@ -155,10 +161,14 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         installSkillButton.isEnabled = false
         java.util.concurrent.CompletableFuture.supplyAsync(
             {
-                AgentSkillInstaller.install(Path.of(basePath), BundledReviewSkill.files())
+                val installResult = AgentSkillInstaller.install(Path.of(basePath), BundledReviewSkill.files())
+                val target = runCatching {
+                    Path.of(basePath).toRealPath().relativize(installResult.target).toString()
+                }.getOrDefault(installResult.target.toString())
+                installResult to target
             },
             AppExecutorUtil.getAppExecutorService(),
-        ).whenComplete { result, error ->
+        ).whenComplete { outcome, error ->
             ApplicationManager.getApplication().invokeLater {
                 if (isUnavailable()) return@invokeLater
                 installSkillButton.isEnabled = true
@@ -171,9 +181,7 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
                     )
                     return@invokeLater
                 }
-                val target = runCatching {
-                    Path.of(basePath).toRealPath().relativize(result.target).toString()
-                }.getOrDefault(result.target.toString())
+                val (result, target) = outcome
                 when (result.status) {
                     AgentSkillInstallStatus.INSTALLED -> Messages.showInfoMessage(
                         project,
@@ -203,12 +211,16 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private fun render(loaded: List<ReviewNote>) {
         val selectedId = notes.selectedValue?.id
+        updateFacetFilters(loaded)
         model.clear()
         val selectedKind = kindFilter.item.kind
         val selectedStatus = statusFilter.item.status
+        val selectedBranch = branchFilter.item
+        val selectedRepository = repositoryFilter.item
         val dateBounds = dateFilter.item.bounds(LocalDate.now(), ZoneId.systemDefault())
         loaded.asSequence()
-            .filter(::isVisibleOnCurrentBranch)
+            .filter { note -> ReviewNoteBranchFilter.isVisible(note.location.branch, selectedBranch) }
+            .filter { note -> ReviewNoteRepositoryFilter.isVisible(note.location.vcsRoot, selectedRepository) }
             .filter { note -> ReviewNoteKindFilter.isVisible(note.kind, selectedKind) }
             .filter { note -> ReviewNoteStatusFilter.isVisible(note.status, selectedStatus) }
             .filter { note -> ReviewNoteCreatedAtFilter.isVisible(note.createdAt, dateBounds.from, dateBounds.to) }
@@ -220,6 +232,25 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         updateButtons()
     }
 
+    private fun updateFacetFilters(loaded: List<ReviewNote>) {
+        updatingFacetFilters = true
+        try {
+            replaceOptions(branchFilter, ReviewNoteBranchFilter.options(loaded), ReviewNoteBranchFilter.all)
+            replaceOptions(repositoryFilter, ReviewNoteRepositoryFilter.options(loaded), ReviewNoteRepositoryFilter.all)
+        } finally {
+            updatingFacetFilters = false
+        }
+    }
+
+    private fun <T> replaceOptions(comboBox: ComboBox<T>, options: List<T>, fallback: T) {
+        val currentOptions = (0 until comboBox.itemCount).map(comboBox::getItemAt)
+        if (currentOptions == options) return
+        val selected = comboBox.item
+        comboBox.removeAllItems()
+        options.forEach(comboBox::addItem)
+        comboBox.selectedItem = options.firstOrNull { it == selected } ?: fallback
+    }
+
 
     private fun selectNote(noteId: String) {
         val index = (0 until model.size()).firstOrNull { model.getElementAt(it).id == noteId } ?: return
@@ -228,27 +259,6 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         notes.requestFocusInWindow()
     }
 
-    private fun isVisibleOnCurrentBranch(note: ReviewNote): Boolean {
-        val branch = note.location.branch ?: return true
-        val vcsRoot = note.location.vcsRoot ?: return false
-        val basePath = project.basePath ?: return false
-        val projectRoot = LocalFileSystem.getInstance().findFileByPath(basePath)?.canonicalPath?.let(Path::of)
-            ?: return false
-        val expectedRoot = projectRoot.resolve(vcsRoot).normalize()
-        if (!expectedRoot.startsWith(projectRoot)) return false
-        val repository = GitRepositoryManager.getInstance(project).repositories.firstOrNull { candidate ->
-            candidate.root.canonicalPath?.let(Path::of)?.normalize() == expectedRoot
-        }
-        val currentVcsRoot = repository?.root?.canonicalPath?.let { rootPath ->
-            ReviewNotePathPolicy.relativeCanonical(projectRoot, Path.of(rootPath))
-        }
-        return ReviewNoteBranch.isVisible(
-            noteBranch = branch,
-            noteVcsRoot = vcsRoot,
-            currentBranch = repository?.currentBranchName,
-            currentVcsRoot = currentVcsRoot,
-        )
-    }
 
     private fun updateButtons() {
         val selected = notes.selectedValue
@@ -284,8 +294,11 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
 
     private fun navigateToSelected() {
         val note = notes.selectedValue ?: return
+        val repositoryRoots = GitRepositoryManager.getInstance(project).repositories.map { repository ->
+            Path.of(repository.root.path)
+        }
         java.util.concurrent.CompletableFuture.supplyAsync(
-            { resolveNavigation(note) },
+            { resolveNavigation(note, repositoryRoots) },
             AppExecutorUtil.getAppExecutorService(),
         ).whenComplete { outcome, error ->
             if (isUnavailable()) return@whenComplete
@@ -306,35 +319,44 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         }
     }
 
-    private fun resolveNavigation(note: ReviewNote): NavigationOutcome {
+    private fun resolveNavigation(note: ReviewNote, repositoryRoots: List<Path>): NavigationOutcome {
         val basePath = project.basePath ?: return NavigationOutcome.Warning("The project has no local directory")
         val projectRoot = Path.of(basePath).normalize()
         val path = projectRoot.resolve(note.location.workspacePath).normalize()
         if (!path.startsWith(projectRoot)) {
             return NavigationOutcome.Warning("The note path is outside the project")
         }
-        val realPath = runCatching { ReviewNoteTargetBoundary.resolve(projectRoot, path) }.getOrNull()
+        val mappings = note.location.vcsRoot?.let { vcsRoot ->
+            val workspaceRepositoryRoot = projectRoot.resolve(vcsRoot).normalize()
+            repositoryRoots.map { repositoryRoot ->
+                ReviewNoteRepositoryMapping(workspaceRepositoryRoot, repositoryRoot)
+            }
+        }.orEmpty()
+        val realPath = runCatching { ReviewNoteTargetBoundary.resolveCanonical(projectRoot, path, mappings) }.getOrNull()
             ?: return NavigationOutcome.Warning("The note target no longer exists")
-        return ReviewNoteReadAction.compute { resolveModelNavigation(note, realPath) }
-    }
-
-    private fun resolveModelNavigation(note: ReviewNote, realPath: Path): NavigationOutcome {
         val file = LocalFileSystem.getInstance().findFileByNioFile(realPath)
             ?: return NavigationOutcome.Warning("The note file no longer exists")
-        if (file.`is`(VFileProperty.SYMLINK)) {
-            return NavigationOutcome.Warning("A symbolic link cannot be a note target")
+        val document = if (note.location.target == "directory") {
+            null
+        } else {
+            FileDocumentManager.getInstance().getDocument(file)
+                ?: return NavigationOutcome.Warning("The note file cannot be opened as text")
         }
-        if (!ProjectFileIndex.getInstance(project).isInContent(file)) {
-            return NavigationOutcome.Warning("The note file is outside the project content roots")
-        }
+        return ReviewNoteReadAction.compute { resolveModelNavigation(note, file, document) }
+    }
+
+    private fun resolveModelNavigation(
+        note: ReviewNote,
+        file: VirtualFile,
+        document: Document?,
+    ): NavigationOutcome {
         if (note.location.target == "directory") {
-            if (!file.isDirectory || file.`is`(VFileProperty.SYMLINK)) {
-                return NavigationOutcome.Warning("The note directory no longer exists or is unsafe")
+            if (!file.isDirectory) {
+                return NavigationOutcome.Warning("The note directory no longer exists")
             }
             return NavigationOutcome.Directory(file)
         }
-        val document = FileDocumentManager.getInstance().getDocument(file)
-            ?: return NavigationOutcome.Warning("The note file cannot be opened as text")
+        requireNotNull(document) { "A file navigation document must be prepared before the read action" }
         return when (val anchor = ReviewNoteAnchor.resolve(note, document.immutableCharSequence.toString())) {
             is AnchorResult.Resolved -> NavigationOutcome.Resolved(file, anchor.offset)
             is AnchorResult.Unresolved -> NavigationOutcome.NeedsReanchor(anchor.reason)
@@ -394,16 +416,10 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
         ): Component {
             val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             if (component is JLabel && value is ReviewNote) {
-                val symbol = value.anchor.symbol?.let { " · $it" }.orEmpty()
-                val branch = value.location.branch?.let { " · $it" }.orEmpty()
-                val location = if (value.location.target == "directory") {
-                    "${value.location.workspacePath}/"
-                } else {
-                    "${value.location.workspacePath}:${value.location.startLine}"
-                }
-                component.text = "${value.kind.uppercase()} · ${value.status}$branch · $location$symbol — ${value.message}"
+                val row = ReviewNoteListPresentation.row(value)
+                component.text = row.text
                 component.icon = ReviewNotePresentations.forWireValue(value.kind).icon()
-                component.toolTipText = value.message
+                component.toolTipText = row.toolTip
             }
             return component
         }

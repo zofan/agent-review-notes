@@ -1,5 +1,6 @@
 package ai.agentreviewnotes.marker
 
+import ai.agentreviewnotes.action.ReviewNoteGitLocationResolver
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewNoteBranch
 import ai.agentreviewnotes.model.ReviewStatus
@@ -7,23 +8,41 @@ import ai.agentreviewnotes.store.ReviewNotePathPolicy
 import ai.agentreviewnotes.store.ReviewNoteStore
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import git4idea.repo.GitRepositoryManager
 import java.nio.file.Path
 
+internal data class ReviewNoteEditorFileSnapshot(
+    val projectRoot: Path,
+    val workspaceTarget: Path,
+    val repositoryRoot: Path?,
+    val currentBranch: String?,
+)
+
 internal object ReviewNoteEditorNotes {
-    fun forFile(project: Project, virtualFile: VirtualFile): List<ReviewNote> {
-        val filePath = virtualFile.canonicalPath ?: return emptyList()
-        val basePath = project.basePath ?: return emptyList()
-        val projectRoot = LocalFileSystem.getInstance().findFileByPath(basePath)?.canonicalPath
-            ?.let(Path::of) ?: return emptyList()
+    fun capture(project: Project, virtualFile: VirtualFile): ReviewNoteEditorFileSnapshot? {
+        val basePath = project.basePath ?: return null
         val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(virtualFile)
-        val currentBranch = repository?.currentBranchName
-        val currentVcsRoot = repository?.root?.canonicalPath?.let { rootPath ->
-            ReviewNotePathPolicy.relativeCanonical(projectRoot, Path.of(rootPath))
+        return ReviewNoteEditorFileSnapshot(
+            projectRoot = Path.of(basePath).toAbsolutePath().normalize(),
+            workspaceTarget = Path.of(virtualFile.path).toAbsolutePath().normalize(),
+            repositoryRoot = repository?.root?.path?.let(Path::of),
+            currentBranch = repository?.currentBranchName,
+        )
+    }
+
+    fun forSnapshot(project: Project, snapshot: ReviewNoteEditorFileSnapshot): List<ReviewNote> {
+        val currentVcsRoot = snapshot.repositoryRoot?.let { repositoryRoot ->
+            ReviewNoteGitLocationResolver.workspaceVcsRoot(
+                snapshot.projectRoot,
+                snapshot.workspaceTarget,
+                repositoryRoot,
+            )
         }
-        val workspacePath = ReviewNotePathPolicy.relativeCanonical(projectRoot, Path.of(filePath)) ?: return emptyList()
+        val workspacePath = ReviewNotePathPolicy.relativeCanonical(
+            snapshot.projectRoot,
+            snapshot.workspaceTarget,
+        ) ?: return emptyList()
 
         return project.service<ReviewNoteStore>().cachedList().filter { note ->
             note.status == ReviewStatus.OPEN.wireValue &&
@@ -32,7 +51,7 @@ internal object ReviewNoteEditorNotes {
                 ReviewNoteBranch.isVisible(
                     noteBranch = note.location.branch,
                     noteVcsRoot = note.location.vcsRoot,
-                    currentBranch = currentBranch,
+                    currentBranch = snapshot.currentBranch,
                     currentVcsRoot = currentVcsRoot,
                 )
         }

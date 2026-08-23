@@ -2,8 +2,8 @@ package ai.agentreviewnotes.action
 
 import ai.agentreviewnotes.marker.ReviewNoteEditorLineTarget
 import ai.agentreviewnotes.marker.ReviewNoteEditorMarkup
-import ai.agentreviewnotes.marker.ReviewNoteEditorNotes
 import ai.agentreviewnotes.marker.ReviewNoteEditorQuery
+import ai.agentreviewnotes.store.ReviewNoteStore
 import ai.agentreviewnotes.ui.ReviewNoteDetailsService
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -25,7 +25,6 @@ class OpenReviewNoteAtCaretAction : AnAction() {
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val editor = event.getData(CommonDataKeys.EDITOR) ?: return
-        val file = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
         val target = targetRange(editor)
         val noteIds = ReviewNoteEditorMarkup.matchingNoteIds(
             editor,
@@ -34,7 +33,7 @@ class OpenReviewNoteAtCaretAction : AnAction() {
             target.includeEndPoint,
         )
         if (noteIds.isEmpty()) return
-        val byId = ReviewNoteEditorNotes.forFile(project, file).associateBy { it.id }
+        val byId = project.service<ReviewNoteStore>().cachedList().associateBy { it.id }
         val notes = noteIds.mapNotNull(byId::get)
         project.service<ReviewNoteDetailsService>().showCandidates(notes, editor)
     }

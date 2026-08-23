@@ -72,12 +72,13 @@ class ReviewNotesCliTest(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
-    def run_cli(self, *args: str, expect: int = 0) -> dict:
+    def run_cli(self, *args: str, expect: int = 0, environment: dict[str, str] | None = None) -> dict:
         completed = subprocess.run(
             [sys.executable, os.fspath(SCRIPT), "--project", os.fspath(self.project), *args],
             check=False,
             capture_output=True,
             text=True,
+            env=environment,
         )
         self.assertEqual(expect, completed.returncode, completed.stderr)
         return json.loads(completed.stdout)
@@ -436,19 +437,127 @@ class ReviewNotesCliTest(unittest.TestCase):
         self.assertEqual(0, result["returned"])
         self.assertEqual(1, result["rejected_count"])
 
-    def test_workspace_path_through_external_symlink_is_rejected(self) -> None:
-        outside = self.project.parent / f"outside-{uuid.uuid4()}"
-        outside.mkdir()
-        self.addCleanup(lambda: outside.rmdir())
-        (self.project / "link").symlink_to(outside, target_is_directory=True)
-        self.write_note(note("open", path="link/secret.py"))
+    def test_workspace_path_through_arbitrary_external_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="review-notes-outside-") as outside_name:
+            outside = Path(outside_name)
+            link = self.project / "link"
+            link.symlink_to(outside, target_is_directory=True)
+            self.write_note(note("open", path="link/secret.py"))
 
-        result = self.run_cli("list")
+            result = self.run_cli("list")
 
-        self.assertEqual(0, result["returned"])
-        self.assertEqual(1, result["rejected_count"])
+            self.assertEqual(0, result["returned"])
+            self.assertEqual(1, result["rejected_count"])
 
-    def test_workspace_path_through_internal_symlink_is_rejected(self) -> None:
+    def test_unrelated_valid_git_top_level_is_admitted_by_offline_cli_authority(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="review-notes-repository-") as repository_name:
+            repository = Path(repository_name)
+            subprocess.run(["git", "init", "-q", os.fspath(repository)], check=True)
+            (repository / "main.py").write_text("print('ok')\n", encoding="utf-8")
+            (self.project / "handler").symlink_to(repository, target_is_directory=True)
+            value = note("open", path="handler/main.py")
+            value["location"]["vcsRoot"] = "handler"
+            value["location"]["vcsPath"] = "main.py"
+            self.write_note(value)
+
+            result = self.run_cli("list")
+
+            self.assertEqual(1, result["returned"])
+            self.assertEqual(0, result["rejected_count"])
+
+    def test_external_projection_with_fake_git_marker_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="review-notes-fake-repository-") as repository_name:
+            repository = Path(repository_name)
+            (repository / ".git").write_text("not a gitfile\n", encoding="utf-8")
+            (repository / "main.py").write_text("print('unsafe')\n", encoding="utf-8")
+            (self.project / "handler").symlink_to(repository, target_is_directory=True)
+            value = note("open", path="handler/main.py")
+            value["location"]["vcsRoot"] = "handler"
+            value["location"]["vcsPath"] = "main.py"
+            self.write_note(value)
+
+            result = self.run_cli("list")
+
+            self.assertEqual(0, result["returned"])
+            self.assertEqual(1, result["rejected_count"])
+
+    def test_hostile_inherited_git_environment_cannot_authorize_fake_projection(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="review-notes-fake-repository-") as repository_name, tempfile.TemporaryDirectory(
+            prefix="review-notes-attacker-git-",
+        ) as attacker_name:
+            repository = Path(repository_name)
+            attacker = Path(attacker_name)
+            (repository / ".git").mkdir()
+            (repository / "main.py").write_text("print('unsafe')\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", os.fspath(attacker)], check=True)
+            (self.project / "handler").symlink_to(repository, target_is_directory=True)
+            value = note("open", path="handler/main.py")
+            value["location"]["vcsRoot"] = "handler"
+            value["location"]["vcsPath"] = "main.py"
+            self.write_note(value)
+            environment = os.environ.copy()
+            environment["GIT_DIR"] = os.fspath(attacker / ".git")
+            environment["GIT_WORK_TREE"] = os.fspath(repository)
+
+            result = self.run_cli("list", environment=environment)
+
+            self.assertEqual(0, result["returned"])
+            self.assertEqual(1, result["rejected_count"])
+
+    def test_external_git_worktree_with_gitfile_is_admitted(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="review-notes-primary-") as primary_name, tempfile.TemporaryDirectory(
+            prefix="review-notes-worktrees-",
+        ) as worktrees_name:
+            primary = Path(primary_name)
+            worktree = Path(worktrees_name) / "handler"
+            subprocess.run(["git", "init", "-q", os.fspath(primary)], check=True)
+            (primary / "main.py").write_text("print('primary')\n", encoding="utf-8")
+            subprocess.run(["git", "-C", os.fspath(primary), "add", "main.py"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", os.fspath(primary),
+                    "-c", "user.name=Agent Review Notes",
+                    "-c", "user.email=agent-review-notes@example.invalid",
+                    "commit", "-qm", "initial",
+                ],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", os.fspath(primary), "worktree", "add", "-qb", "projected", os.fspath(worktree)],
+                check=True,
+            )
+            self.assertTrue((worktree / ".git").is_file())
+            (self.project / "handler").symlink_to(worktree, target_is_directory=True)
+            value = note("open", path="handler/main.py")
+            value["location"]["vcsRoot"] = "handler"
+            value["location"]["vcsPath"] = "main.py"
+            self.write_note(value)
+
+            result = self.run_cli("list")
+
+            self.assertEqual(1, result["returned"])
+            self.assertEqual(0, result["rejected_count"])
+
+    def test_nested_symlink_escaping_projected_git_repository_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="review-notes-repository-") as repository_name, tempfile.TemporaryDirectory(
+            prefix="review-notes-secret-",
+        ) as secret_name:
+            repository = Path(repository_name)
+            secret = Path(secret_name)
+            subprocess.run(["git", "init", "-q", os.fspath(repository)], check=True)
+            (repository / "escape").symlink_to(secret, target_is_directory=True)
+            (self.project / "handler").symlink_to(repository, target_is_directory=True)
+            value = note("open", path="handler/escape/secret.py")
+            value["location"]["vcsRoot"] = "handler"
+            value["location"]["vcsPath"] = "escape/secret.py"
+            self.write_note(value)
+
+            result = self.run_cli("list")
+
+            self.assertEqual(0, result["returned"])
+            self.assertEqual(1, result["rejected_count"])
+
+    def test_workspace_path_through_internal_symlink_is_admitted(self) -> None:
         real = self.project / "real"
         real.mkdir()
         (self.project / "link").symlink_to(real, target_is_directory=True)
@@ -456,8 +565,8 @@ class ReviewNotesCliTest(unittest.TestCase):
 
         result = self.run_cli("list")
 
-        self.assertEqual(0, result["returned"])
-        self.assertEqual(1, result["rejected_count"])
+        self.assertEqual(1, result["returned"])
+        self.assertEqual(0, result["rejected_count"])
 
     def test_unpaired_unicode_surrogate_is_rejected_without_a_traceback(self) -> None:
         self.write_note(note("open", message="\ud800"))

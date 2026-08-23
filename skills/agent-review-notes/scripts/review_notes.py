@@ -10,6 +10,7 @@ import math
 import os
 import re
 import stat
+import subprocess
 import sys
 import tempfile
 from contextlib import ExitStack, contextmanager
@@ -270,6 +271,61 @@ def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
     return note
 
 
+def _admit_workspace_target(note: dict[str, Any], project: Path) -> None:
+    project_real = project.resolve(strict=True)
+    location = note["location"]
+    workspace_path = location["workspacePath"]
+    logical_target = project.joinpath(*PurePosixPath(workspace_path).parts)
+    real_target = logical_target.resolve(strict=False)
+    if real_target == project_real or project_real in real_target.parents:
+        return
+
+    vcs_root = location.get("vcsRoot")
+    if not isinstance(vcs_root, str):
+        raise ValueError("workspacePath escapes through an unregistered repository projection")
+    logical_repository = project.joinpath(*PurePosixPath(vcs_root).parts)
+    try:
+        repository_real = logical_repository.resolve(strict=True)
+    except OSError as error:
+        raise ValueError("projected repository root is unavailable") from error
+    if logical_repository != logical_target and logical_repository not in logical_target.parents:
+        raise ValueError("workspacePath is outside its projected repository")
+    if repository_real != real_target and repository_real not in real_target.parents:
+        raise ValueError("workspacePath escapes its projected repository")
+    git_marker = repository_real / ".git"
+    if not git_marker.exists() or git_marker.is_symlink() or not (git_marker.is_dir() or git_marker.is_file()):
+        raise ValueError("projected repository has no safe Git metadata marker")
+    if not _is_verified_git_top_level(repository_real):
+        raise ValueError("projected repository is not a verified Git top-level")
+
+
+def _is_verified_git_top_level(repository: Path) -> bool:
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.upper().startswith("GIT_")
+    }
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_CONFIG_GLOBAL"] = os.devnull
+    try:
+        completed = subprocess.run(
+            ["git", "-C", os.fspath(repository), "rev-parse", "--show-toplevel"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=5,
+            check=False,
+            env=environment,
+        )
+        if completed.returncode != 0:
+            return False
+        reported = Path(completed.stdout.strip()).resolve(strict=True)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return reported == repository
+
+
 def _read_regular_file(path: Path) -> bytes:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags)
@@ -302,19 +358,7 @@ def _load_path(path: Path) -> tuple[dict[str, Any], bytes]:
         raise ValueError("invalid review note filename")
     raw = _read_regular_file(path)
     note = _validate_note(_parse_json(raw), expected_id)
-    project_root = path.parents[3].resolve(strict=True)
-    workspace_relative = PurePosixPath(note["location"]["workspacePath"])
-    current = project_root
-    for component in workspace_relative.parts:
-        current = current / component
-        try:
-            if stat.S_ISLNK(current.lstat().st_mode):
-                raise ValueError("workspacePath contains a symbolic link")
-        except FileNotFoundError:
-            break
-    workspace_target = (project_root / Path(*workspace_relative.parts)).resolve(strict=False)
-    if workspace_target != project_root and project_root not in workspace_target.parents:
-        raise ValueError("workspacePath resolves outside the project")
+    _admit_workspace_target(note, path.parents[3])
     return note, raw
 
 

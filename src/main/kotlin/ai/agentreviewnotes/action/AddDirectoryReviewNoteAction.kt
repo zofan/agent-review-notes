@@ -9,9 +9,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.components.service
-import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.util.concurrency.AppExecutorUtil
 import git4idea.repo.GitRepositoryManager
@@ -27,17 +25,24 @@ class AddDirectoryReviewNoteAction : AnAction() {
     override fun update(event: AnActionEvent) {
         val project = event.project
         val directory = event.getData(CommonDataKeys.VIRTUAL_FILE)
+        val basePath = project?.basePath
         event.presentation.isEnabledAndVisible =
             project != null &&
                 directory?.isDirectory == true &&
                 directory.isInLocalFileSystem &&
-                !directory.`is`(VFileProperty.SYMLINK) &&
-                ProjectFileIndex.getInstance(project).isInContent(directory)
+                basePath != null &&
+                ReviewNoteTargetBoundary.isWorkspacePath(Path.of(basePath), Path.of(directory.path))
     }
 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val directory = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
+        val projectRoot = Path.of(requireNotNull(project.basePath)).toAbsolutePath().normalize()
+        val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(directory)
+        val repositoryRoot = repository?.root?.path?.let(Path::of)
+        val repositoryHead = repository?.currentRevision
+        val repositoryBranch = repository?.currentBranchName
+        val requestedPath = Path.of(directory.path)
         val dialog = ReviewNoteDialog(project)
         if (!dialog.showAndGet()) return
 
@@ -46,23 +51,18 @@ class AddDirectoryReviewNoteAction : AnAction() {
         val message = dialog.message
         CompletableFuture.supplyAsync(
             {
-                val projectRoot = Path.of(requireNotNull(project.basePath)).toRealPath()
-                val directoryPath = ReviewNoteTargetBoundary.resolve(projectRoot, Path.of(directory.path))
+                val git = ReviewNoteGitLocationResolver.resolve(
+                    projectRoot = projectRoot,
+                    target = requestedPath,
+                    repositoryRoot = repositoryRoot,
+                    head = repositoryHead,
+                    branch = repositoryBranch,
+                )
+                val mapping = ReviewNoteGitLocationResolver.repositoryMapping(projectRoot, requestedPath, repositoryRoot)
+                val directoryPath = ReviewNoteTargetBoundary.resolve(projectRoot, requestedPath, listOfNotNull(mapping))
                 require(directoryPath != projectRoot) {
                     "The directory is outside the project or is the project root"
                 }
-                require(!directory.`is`(VFileProperty.SYMLINK)) { "A symbolic link cannot be a note target" }
-                val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(directory)
-                val repositoryRoot = repository?.root?.path?.let(Path::of)?.let { path ->
-                    runCatching { path.toRealPath() }.getOrNull()
-                }
-                val git = ReviewNoteGitLocationResolver.resolve(
-                    projectRoot = projectRoot,
-                    target = directoryPath,
-                    repositoryRoot = repositoryRoot,
-                    head = repository?.currentRevision,
-                    branch = repository?.currentBranchName,
-                )
                 DirectoryReviewNoteFactory.create(
                     workspacePath = relativePath(projectRoot, directoryPath),
                     vcsRoot = git.vcsRoot,

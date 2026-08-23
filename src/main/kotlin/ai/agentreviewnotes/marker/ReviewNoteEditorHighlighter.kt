@@ -58,13 +58,14 @@ internal class ReviewNoteEditorHighlighter(private val project: Project) {
             .map { it.editor }
             .filterNot(Editor::isDisposed)
         val document = editors.firstOrNull()?.document ?: return
-        val key = file.canonicalPath ?: file.path
+        val key = file.path
         val generation = generations.next(key)
         val capturedStamp = document.modificationStamp
+        val noteSnapshot = ReviewNoteEditorNotes.capture(project, file) ?: return
         val task = scheduler.schedule(
             {
                 try {
-                    prepareOffEdt(file, key, generation, capturedEpoch, capturedStamp, document, editors)
+                    prepareOffEdt(file, noteSnapshot, key, generation, capturedEpoch, capturedStamp, document, editors)
                 } catch (error: ProcessCanceledException) {
                     throw error
                 } catch (error: CancellationException) {
@@ -81,6 +82,7 @@ internal class ReviewNoteEditorHighlighter(private val project: Project) {
 
     private fun prepareOffEdt(
         file: VirtualFile,
+        noteSnapshot: ReviewNoteEditorFileSnapshot,
         key: String,
         generation: Long,
         capturedEpoch: Long,
@@ -89,11 +91,12 @@ internal class ReviewNoteEditorHighlighter(private val project: Project) {
         editors: List<Editor>,
     ) {
         if (project.isDisposed || !generations.isCurrent(key, generation, capturedEpoch)) return
+        val matchingNotes = ReviewNoteEditorNotes.forSnapshot(project, noteSnapshot)
         val input = ApplicationManager.getApplication().runReadAction<PreparationInput?> {
             if (project.isDisposed || document.modificationStamp != capturedStamp) return@runReadAction null
             PreparationInput(
                 text = document.immutableCharSequence.toString(),
-                notes = ReviewNoteEditorNotes.forFile(project, file),
+                notes = matchingNotes,
             )
         } ?: return
         val sha256 = ReviewNoteAnchor.sha256(input.text)

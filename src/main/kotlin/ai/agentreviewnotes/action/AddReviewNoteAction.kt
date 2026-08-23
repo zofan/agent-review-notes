@@ -18,10 +18,8 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.vfs.VFileProperty
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiNamedElement
@@ -40,19 +38,25 @@ class AddReviewNoteAction : AnAction() {
         val project = event.project
         val editor = event.getData(CommonDataKeys.EDITOR)
         val file = event.getData(CommonDataKeys.VIRTUAL_FILE)
+        val basePath = project?.basePath
         event.presentation.isEnabledAndVisible =
             project != null &&
                 editor != null &&
                 file?.isInLocalFileSystem == true &&
-                !file.`is`(VFileProperty.SYMLINK) &&
-                ProjectFileIndex.getInstance(project).isInContent(file)
+                basePath != null &&
+                ReviewNoteTargetBoundary.isWorkspacePath(Path.of(basePath), Path.of(file.path))
     }
 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val editor = event.getData(CommonDataKeys.EDITOR) ?: return
-        val file = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
-        if (file.`is`(VFileProperty.SYMLINK)) return
+        val virtualFile = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
+        val projectRoot = Path.of(requireNotNull(project.basePath)).toAbsolutePath().normalize()
+        val repository = GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(virtualFile)
+        val repositoryRoot = repository?.root?.path?.let(Path::of)
+        val repositoryHead = repository?.currentRevision
+        val repositoryBranch = repository?.currentBranchName
+        val sourcePath = Path.of(virtualFile.path)
         val dialog = ReviewNoteDialog(project)
         if (!dialog.showAndGet()) return
 
@@ -64,11 +68,18 @@ class AddReviewNoteAction : AnAction() {
         val store = project.service<ReviewNoteStore>()
         CompletableFuture.supplyAsync(
             {
+                val preparedTarget = prepareTarget(
+                    projectRoot = projectRoot,
+                    sourcePath = sourcePath,
+                    repositoryRoot = repositoryRoot,
+                    repositoryHead = repositoryHead,
+                    repositoryBranch = repositoryBranch,
+                )
                 ApplicationManager.getApplication().runReadAction<ReviewNote> {
                     check(document.modificationStamp == modificationStamp) {
                         "The document changed while the note was being created; try again"
                     }
-                    buildNote(project, document, file.path, range, kind, message)
+                    buildNote(project, document, preparedTarget, range, kind, message)
                 }
             },
             AppExecutorUtil.getAppExecutorService(),
@@ -89,30 +100,37 @@ class AddReviewNoteAction : AnAction() {
         }
     }
 
+    private fun prepareTarget(
+        projectRoot: Path,
+        sourcePath: Path,
+        repositoryRoot: Path?,
+        repositoryHead: String?,
+        repositoryBranch: String?,
+    ): PreparedTarget {
+        val git = ReviewNoteGitLocationResolver.resolve(
+            projectRoot = projectRoot,
+            target = sourcePath,
+            repositoryRoot = repositoryRoot,
+            head = repositoryHead,
+            branch = repositoryBranch,
+        )
+        val mapping = ReviewNoteGitLocationResolver.repositoryMapping(projectRoot, sourcePath, repositoryRoot)
+        val file = ReviewNoteTargetBoundary.resolve(projectRoot, sourcePath, listOfNotNull(mapping))
+        return PreparedTarget(projectRoot, file, git)
+    }
+
     private fun buildNote(
         project: Project,
         document: Document,
-        filePath: String,
+        preparedTarget: PreparedTarget,
         range: TextRange,
         kind: ReviewKind,
         message: String,
     ): ReviewNote {
         val text = document.text
-        val projectRoot = Path.of(requireNotNull(project.basePath)).toRealPath()
-        val sourcePath = Path.of(filePath)
-        val file = ReviewNoteTargetBoundary.resolve(projectRoot, sourcePath)
-        val virtualFile = com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByPath(filePath)
-        val repository = virtualFile?.let { GitRepositoryManager.getInstance(project).getRepositoryForFileQuick(it) }
-        val repositoryRoot = repository?.root?.path?.let(Path::of)?.let { path ->
-            runCatching { path.toRealPath() }.getOrNull()
-        }
-        val git = ReviewNoteGitLocationResolver.resolve(
-            projectRoot = projectRoot,
-            target = file,
-            repositoryRoot = repositoryRoot,
-            head = repository?.currentRevision,
-            branch = repository?.currentBranchName,
-        )
+        val projectRoot = preparedTarget.projectRoot
+        val file = preparedTarget.file
+        val git = preparedTarget.git
         val selection = text.substring(range.startOffset, range.endOffset)
         val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(document)
         val symbol = psiFile?.findElementAt(range.startOffset.coerceAtMost((text.length - 1).coerceAtLeast(0)))
@@ -168,6 +186,12 @@ class AddReviewNoteAction : AnAction() {
 
     private fun com.intellij.psi.PsiElement.parentsWithSelf(): Sequence<com.intellij.psi.PsiElement> =
         generateSequence(this) { it.parent }
+
+    private data class PreparedTarget(
+        val projectRoot: Path,
+        val file: Path,
+        val git: ReviewNoteGitLocation,
+    )
 
     private companion object {
         const val ANCHOR_CONTEXT = 240

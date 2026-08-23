@@ -173,9 +173,18 @@ Required top-level fields:
 - `message` and `createdAt`;
 - `location`, `anchor`, and nullable `resolution`.
 
-`location.workspacePath` is project-relative. It must not be absolute, contain `..`, escape the real
-project root, or resolve through a symbolic link. A directory note has `location.target == "directory"`;
-otherwise offsets and lines refer to a file snapshot. Git fields are context, not authority.
+`location.workspacePath` is the lexical workspace path persisted exactly as projected in the project. It
+must be project-relative, must not be absolute or contain `..`, and must remain lexically inside the
+workspace. Its canonical target must either remain inside the real project root or be inside an admitted
+Git repository projection named by `vcsRoot`. In the plugin, authority comes from the IDE's registered Git
+repository mapping. The standalone CLI has no IDE registry and therefore uses a distinct offline authority
+model: `git rev-parse --show-toplevel` must identify the projection's canonical root exactly. A fake `.git`
+marker is not authority, and inherited `GIT_*` repository-selection overrides are stripped before the
+identity check. Under this explicit offline model, a valid unrelated Git repository projected into
+the workspace is admitted even though the CLI cannot claim it is IDE-registered. Both models permit a
+projection such as `golang/handler`, reject an arbitrary external symlink that is not an admitted/verified
+Git top-level, and reject any nested symlink that escapes that root. A directory note has
+`location.target == "directory"`; otherwise offsets and lines refer to a file snapshot.
 
 ## Workflow
 
@@ -215,7 +224,13 @@ otherwise offsets and lines refer to a file snapshot. Git fields are context, no
 
 ## Safety Rules
 
-- Do not follow symlinks in the note directory or target path.
+- Do not follow symlinks in the note directory. In a target path, accept only a lexical workspace path
+  whose canonical target remains in the project, an IDE-registered Git root in the plugin, or an exact
+  verified Git top-level under the standalone CLI's offline authority model.
+- Reject fake `.git` markers, an arbitrary external symlink without verified Git top-level identity, and
+  every nested symlink that escapes an admitted repository.
+- Do not let inherited `GIT_DIR`, `GIT_WORK_TREE`, or other `GIT_*` overrides select authority for the
+  standalone CLI identity check.
 - Do not edit source files from an unsafe path, ambiguous anchor, or malformed note.
 - Do not overwrite concurrent JSON changes.
 - Do not mark a note resolved when required verification failed.
@@ -230,8 +245,11 @@ otherwise offsets and lines refer to a file snapshot. Git fields are context, no
    bound.
 3. **Trusting stored line numbers after edits.** Use snapshot hash and unique anchor context; otherwise
    retain or set `needs_reanchor` through the IDE.
-4. **Treating Git metadata as a filesystem path.** Only admitted `workspacePath` under the real project
-   root identifies the target.
+4. **Treating either path representation or `.git` existence as authority.** Preserve the lexical workspace
+   path for note identity. The plugin validates the canonical target against its registered Git repository;
+   the standalone CLI requires the projection itself to equal a verified Git top-level. A valid unrelated
+   Git repository is deliberately admitted by that offline policy, but a fake marker, arbitrary external
+   non-repository symlink, and nested symlink escape are rejected.
 5. **Re-serializing a reduced DTO.** It deletes extension fields. Use the provided mutation commands,
    which preserve the raw object.
 6. **Equating atomic rename with locking.** Plugin and CLI writers share per-note locks and verify expected
@@ -244,7 +262,10 @@ otherwise offsets and lines refer to a file snapshot. Git fields are context, no
 - [ ] Default work included only `open` and `in_progress`
 - [ ] Complete bodies were loaded only for explicit selected IDs
 - [ ] Selected work was claimed before project mutation
-- [ ] Paths stayed inside the real project root without symlinks
+- [ ] Every lexical workspace path stayed inside the workspace and its canonical target stayed inside the
+      real project root, an IDE-registered Git root, or the standalone CLI's exact verified Git top-level
+- [ ] Fake `.git` markers, arbitrary external non-repository symlinks, and nested symlink escapes were rejected
+- [ ] Inherited `GIT_*` repository-selection overrides could not change the verified Git top-level
 - [ ] Changed snapshots used a unique contextual anchor or remained unresolved
 - [ ] Project changes are scoped to selected note messages
 - [ ] Required tests and repository gates passed with real output

@@ -2,6 +2,7 @@ package ai.agentreviewnotes.action
 
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.store.ReviewNoteAdmission
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -82,5 +83,30 @@ class DirectoryReviewNoteFactoryTest {
         )
 
         assertEquals(ReviewNoteGitLocation("services", "api", "def456", "feature"), location)
+    }
+
+    @Test
+    fun `symlinked repository сохраняет workspace alias и пути owning repo`() {
+        val parent = Files.createTempDirectory("review-git-location-")
+        try {
+            val project = Files.createDirectory(parent.resolve("workspace"))
+            val repository = Files.createDirectory(parent.resolve("handler"))
+            val bundle = Files.createDirectory(repository.resolve("telegram"))
+            val golang = Files.createDirectory(project.resolve("golang"))
+            val alias = golang.resolve("handler")
+            Files.createSymbolicLink(alias, repository)
+
+            val location = ReviewNoteGitLocationResolver.resolve(
+                projectRoot = project,
+                target = alias.resolve(bundle.fileName),
+                repositoryRoot = repository,
+                head = "def456",
+                branch = "feature",
+            )
+
+            assertEquals(ReviewNoteGitLocation("golang/handler", "telegram", "def456", "feature"), location)
+        } finally {
+            parent.toFile().deleteRecursively()
+        }
     }
 }

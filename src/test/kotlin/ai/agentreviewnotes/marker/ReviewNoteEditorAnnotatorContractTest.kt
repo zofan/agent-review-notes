@@ -5,6 +5,7 @@ import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ReviewNoteEditorHighlighterContractTest {
     @Test
@@ -33,5 +34,27 @@ class ReviewNoteEditorHighlighterContractTest {
         assertContains(highlighter, "ReviewNoteRefreshGeneration")
         assertContains(highlighter, "if (project.isDisposed)")
         assertFalse(highlighter.contains("catch (error: Throwable)"))
+    }
+
+    @Test
+    fun `repository alias canonicalization runs before the editor read action`() {
+        val highlighter = Files.readString(
+            Path.of("src/main/kotlin/ai/agentreviewnotes/marker/ReviewNoteEditorHighlighter.kt"),
+        )
+        val notes = Files.readString(
+            Path.of("src/main/kotlin/ai/agentreviewnotes/marker/ReviewNoteEditorNotes.kt"),
+        )
+
+        assertContains(highlighter, "ReviewNoteEditorNotes.capture(project, file)")
+        assertFalse(highlighter.contains("file.canonicalPath"))
+        assertContains(highlighter, "ReviewNoteEditorNotes.forSnapshot(project, noteSnapshot)")
+        assertContains(highlighter, "runReadAction<PreparationInput?>")
+        assertTrue(
+            highlighter.indexOf("ReviewNoteEditorNotes.forSnapshot(project, noteSnapshot)") <
+                highlighter.indexOf("runReadAction<PreparationInput?>"),
+        )
+        assertContains(notes, "fun capture(project: Project, virtualFile: VirtualFile)")
+        assertContains(notes, "fun forSnapshot(project: Project, snapshot: ReviewNoteEditorFileSnapshot)")
+        assertFalse(notes.substringAfter("fun capture").substringBefore("fun forSnapshot").contains("toRealPath"))
     }
 }

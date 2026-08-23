@@ -20,7 +20,10 @@ class OpenReviewNoteAtCaretActionContractTest {
         assertContains(source, "caretOffset = offset")
         assertContains(source, "target.includeEndPoint")
         assertContains(source, "ReviewNoteEditorMarkup.matchingNoteIds")
+        assertContains(source, "project.service<ReviewNoteStore>().cachedList()")
         assertContains(source, "showCandidates(notes, editor)")
+        assertFalse(source.contains("ReviewNoteEditorNotes.forFile"))
+        assertFalse(source.contains("workspaceVcsRoot"))
         assertFalse(source.contains("ReviewNoteAnchor.resolve"))
         assertFalse(source.contains("sha256"))
     }
