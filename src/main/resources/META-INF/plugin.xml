@@ -4,36 +4,18 @@
     <vendor>0x9171</vendor>
 
     <description><![CDATA[
-        Agent Review Notes stores local code and directory review comments without changing project files and includes a bundled AI-agent skill for reading and updating notes.
-        <p>
-            Плагин сохраняет локальные замечания к коду и структуре проекта, не изменяя исходные
-            файлы и не отправляя данные в сеть.
-        </p>
-        <p>
-            Плагин поставляется со встроенным skill <code>agent-review-notes</code> для AI-агента.
-            Skill описывает безопасное чтение и изменение очереди замечаний и устанавливается в
-            проект кнопкой <b>Install SKILL</b> в окне Agent Review.
-        </p>
-        <p>Плагин поддерживает:</p>
+        Agent Review Notes manages private, project-local review notes for code, files, and directories without changing source files or sending data over the network.
+        <p>Features:</p>
         <ul>
-            <li>замечания на выделенный код, позицию каретки, файл или каталог;</li>
-            <li>точные anchors со snapshot, контекстом и Git revision;</li>
-            <li>привязку к Git repository и branch в multi-root проектах;</li>
-            <li>просмотр в tool window, типизированные иконки, цветную подсветку и текст заметки над anchor;</li>
-            <li>открытие деталей кликом по block inlay или хоткеем из строки caret и пересекающего selection;</li>
-            <li>типы blocker, bug, feature, question и suggestion с фильтрацией и разной визуальной семантикой;</li>
-            <li>изменение статуса, редактирование и удаление;</li>
-            <li>теги, зависимости между заметками и dependency-aware план выполнения в bundled skill;</li>
-            <li>безопасную перепривязку после изменения файла или явный статус needs_reanchor;</li>
-            <li>открытый versioned JSON-контракт для интеграции с локальными AI-агентами.</li>
+            <li>selection, caret, file, and directory notes with context-rich Git-aware anchors for multi-root projects;</li>
+            <li>a tool window, project badges, editor highlights, block inlays, details, navigation, and safe re-anchoring;</li>
+            <li>note types, statuses, tags, filters, icons, editing, deletion, and branch scoping;</li>
+            <li>validated dependencies, safe claiming, and dependency-aware execution plans;</li>
+            <li>a local, versioned JSON contract for integration with AI agents;</li>
+            <li>a bundled AI-agent skill installed through <b>Install SKILL</b> for listing, planning, claiming, and resolving notes.</li>
         </ul>
-        <p>
-            Заметки хранятся только в локальном каталоге проекта. Плагин не запускает AI-агентов
-            самостоятельно и не добавляет служебные комментарии в production-код.
-        </p>
-        <p>
-            Copyright © Andrey Loenov
-        </p>
+        <p>The plugin never runs agents itself or inserts review comments into production code.</p>
+        <p>Copyright © Andrey Loenov</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
