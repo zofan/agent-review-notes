@@ -21,6 +21,6 @@ class PluginDescriptionContractTest {
         assertContains(description, "versioned JSON contract")
         assertContains(description, "bundled AI-agent skill")
         assertContains(description, "Install SKILL")
-        assertContains(description, "Copyright © Andrey Loenov")
+        assertContains(description, "Copyright © Andrey Leonov")
     }
 }

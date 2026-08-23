@@ -15,7 +15,7 @@
             <li>a bundled AI-agent skill installed through <b>Install SKILL</b> for listing, planning, claiming, and resolving notes.</li>
         </ul>
         <p>The plugin never runs agents itself or inserts review comments into production code.</p>
-        <p>Copyright © Andrey Loenov</p>
+        <p>Copyright © Andrey Leonov</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
