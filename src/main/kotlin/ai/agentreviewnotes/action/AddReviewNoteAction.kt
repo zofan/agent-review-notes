@@ -3,6 +3,7 @@ package ai.agentreviewnotes.action
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 import ai.agentreviewnotes.model.NoteAnchor
 import ai.agentreviewnotes.model.NoteLocation
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V3
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
@@ -57,7 +58,8 @@ class AddReviewNoteAction : AnAction() {
         val repositoryHead = repository?.currentRevision
         val repositoryBranch = repository?.currentBranchName
         val sourcePath = Path.of(virtualFile.path)
-        val dialog = ReviewNoteDialog(project)
+        val store = project.service<ReviewNoteStore>()
+        val dialog = ReviewNoteDialog(project, availableParents = store.cachedList())
         if (!dialog.showAndGet()) return
 
         val document = editor.document
@@ -65,7 +67,8 @@ class AddReviewNoteAction : AnAction() {
         val modificationStamp = document.modificationStamp
         val kind = dialog.kind
         val message = dialog.message
-        val store = project.service<ReviewNoteStore>()
+        val tags = dialog.tags
+        val dependsOn = dialog.dependsOn
         CompletableFuture.supplyAsync(
             {
                 val preparedTarget = prepareTarget(
@@ -79,7 +82,7 @@ class AddReviewNoteAction : AnAction() {
                     check(document.modificationStamp == modificationStamp) {
                         "The document changed while the note was being created; try again"
                     }
-                    buildNote(project, document, preparedTarget, range, kind, message)
+                    buildNote(project, document, preparedTarget, range, kind, message, tags, dependsOn)
                 }
             },
             AppExecutorUtil.getAppExecutorService(),
@@ -126,6 +129,8 @@ class AddReviewNoteAction : AnAction() {
         range: TextRange,
         kind: ReviewKind,
         message: String,
+        tags: List<String>,
+        dependsOn: List<String>,
     ): ReviewNote {
         val text = document.text
         val projectRoot = preparedTarget.projectRoot
@@ -158,7 +163,7 @@ class AddReviewNoteAction : AnAction() {
             symbol = symbol,
         )
         return ReviewNote(
-            schema = kind.schema,
+            schema = REVIEW_NOTE_SCHEMA_V3,
             id = UUID.randomUUID().toString(),
             status = ReviewStatus.OPEN.wireValue,
             kind = kind.wireValue,
@@ -166,6 +171,8 @@ class AddReviewNoteAction : AnAction() {
             location = location,
             anchor = anchor,
             createdAt = Instant.now().toString(),
+            tags = tags,
+            dependsOn = dependsOn,
         )
     }
 

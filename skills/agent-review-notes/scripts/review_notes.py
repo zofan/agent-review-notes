@@ -22,18 +22,24 @@ from typing import Any, Callable, NoReturn
 
 SCHEMA_V1 = "agent.review.note.v1"
 SCHEMA_V2 = "agent.review.note.v2"
+SCHEMA_V3 = "agent.review.note.v3"
 STATUSES = {"open", "in_progress", "resolved", "wont_fix", "needs_reanchor", "stale"}
 ACTIONABLE = {"open", "in_progress"}
 KINDS_BY_SCHEMA = {
     SCHEMA_V1: {"blocker", "bug", "question", "suggestion"},
     SCHEMA_V2: {"blocker", "bug", "feature", "question", "suggestion"},
+    SCHEMA_V3: {"blocker", "bug", "feature", "question", "suggestion"},
 }
 KINDS = set().union(*KINDS_BY_SCHEMA.values())
 ID_PATTERN = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
+TAG_PATTERN = re.compile(r"[a-z0-9](?:[a-z0-9:_-]{0,62}[a-z0-9])?")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 MAX_NOTE_BYTES = 1_048_576
 MAX_SHOW = 20
 MAX_LIST = 100
+MAX_TAGS = 32
+MAX_DEPENDENCIES = 32
+MAX_PLAN = 100
 MAX_OUTPUT_BYTES = 262_144
 MAX_ERROR_CHARACTERS = 4_096
 INT_MIN = -(2**31)
@@ -204,6 +210,25 @@ def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
     _required_string(note, "message", nonempty=True)
     created_at = _required_string(note, "createdAt")
     _parse_instant(created_at)
+
+    has_workflow_fields = "tags" in note or "dependsOn" in note
+    if schema != SCHEMA_V3 and has_workflow_fields:
+        raise ValueError("tags and dependsOn require agent.review.note.v3")
+    if schema == SCHEMA_V3:
+        tags = note.get("tags")
+        dependencies = note.get("dependsOn")
+        if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+            raise ValueError("tags must be an array of strings")
+        if len(tags) > MAX_TAGS or tags != sorted(set(tags)) or any(TAG_PATTERN.fullmatch(tag) is None for tag in tags):
+            raise ValueError("tags must be unique normalized values in stable order")
+        if not isinstance(dependencies, list) or not all(isinstance(item, str) for item in dependencies):
+            raise ValueError("dependsOn must be an array of note ids")
+        if len(dependencies) > MAX_DEPENDENCIES or len(dependencies) != len(set(dependencies)):
+            raise ValueError("dependsOn must contain unique bounded note ids")
+        if any(ID_PATTERN.fullmatch(item) is None for item in dependencies):
+            raise ValueError("dependsOn contains an invalid note id")
+        if note_id in dependencies:
+            raise ValueError("review note cannot depend on itself")
 
     location = note.get("location")
     anchor = note.get("anchor")
@@ -396,8 +421,24 @@ def _metadata(note: dict[str, Any]) -> dict[str, Any]:
         "workspacePath": location["workspacePath"],
         "branch": location.get("branch"),
         "createdAt": note["createdAt"],
+        "tags": note.get("tags", []),
+        "dependsOn": note.get("dependsOn", []),
         "messagePreview": message[:120],
     }
+
+
+def _split_tags(raw: str) -> set[str]:
+    tags = {tag for tag in raw.split(",") if tag}
+    if not tags or len(tags) > MAX_TAGS or any(TAG_PATTERN.fullmatch(tag) is None for tag in tags):
+        raise CliError(f"invalid tag filter: {raw}")
+    return tags
+
+
+def _matches_tags(note: dict[str, Any], requested: set[str] | None, mode: str) -> bool:
+    if requested is None:
+        return True
+    tags = set(note.get("tags", []))
+    return bool(tags & requested) if mode == "any" else requested <= tags
 
 
 def _encode_cursor(note: dict[str, Any]) -> str:
@@ -435,6 +476,7 @@ def _command_stats(_args: argparse.Namespace, notes_directory: Path) -> dict[str
 def _command_list(args: argparse.Namespace, notes_directory: Path) -> dict[str, Any]:
     statuses = _split_values(args.status, STATUSES, "status")
     kinds = _split_values(args.kind, KINDS, "kind") if args.kind else None
+    requested_tags = _split_tags(args.tag) if args.tag else None
     try:
         created_after = _parse_instant(args.created_after) if args.created_after else None
     except ValueError as error:
@@ -447,6 +489,7 @@ def _command_list(args: argparse.Namespace, notes_directory: Path) -> dict[str, 
         and (args.path_prefix is None or note["location"]["workspacePath"].startswith(args.path_prefix))
         and (args.branch is None or note["location"].get("branch") == args.branch)
         and (created_after is None or _parse_instant(note["createdAt"]) > created_after)
+        and _matches_tags(note, requested_tags, args.tag_mode)
     ]
     if args.cursor and args.offset:
         raise CliError("cursor and non-zero offset cannot be combined")
@@ -479,6 +522,117 @@ def _command_list(args: argparse.Namespace, notes_directory: Path) -> dict[str, 
     return response
 
 
+def _validate_dependency_closure(roots: list[dict[str, Any]], by_id: dict[str, dict[str, Any]]) -> None:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(note: dict[str, Any]) -> None:
+        note_id = note["id"]
+        if note_id in visiting:
+            raise CliError(f"dependency cycle contains review note {note_id}")
+        if note_id in visited:
+            return
+        if len(visiting) >= MAX_PLAN:
+            raise CliError(f"dependency chain exceeds maximum depth {MAX_PLAN}")
+        visiting.add(note_id)
+        for dependency_id in note.get("dependsOn", []):
+            dependency = by_id.get(dependency_id)
+            if dependency is None:
+                raise CliError(f"missing dependency {dependency_id} required by {note_id}")
+            visit(dependency)
+        visiting.remove(note_id)
+        visited.add(note_id)
+
+    for root in roots:
+        visit(root)
+
+
+def _command_plan(args: argparse.Namespace, notes_directory: Path) -> dict[str, Any]:
+    requested_tags = _split_tags(args.tag) if args.tag else None
+    admitted, rejected = _scan(notes_directory)
+    by_id = {note["id"]: note for note in admitted}
+    selected = [
+        note for note in admitted
+        if note["status"] in ACTIONABLE and _matches_tags(note, requested_tags, args.tag_mode)
+    ]
+    included: dict[str, dict[str, Any]] = {}
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def include(note: dict[str, Any]) -> None:
+        note_id = note["id"]
+        if note_id in visiting:
+            raise CliError(f"dependency cycle contains review note {note_id}")
+        if note_id in visited:
+            return
+        if len(visiting) >= MAX_PLAN:
+            raise CliError(f"dependency chain exceeds maximum depth {MAX_PLAN}")
+        visiting.add(note_id)
+        for dependency_id in note.get("dependsOn", []):
+            dependency = by_id.get(dependency_id)
+            if dependency is None:
+                raise CliError(f"missing dependency {dependency_id} required by {note_id}")
+            if dependency["status"] in ACTIONABLE:
+                include(dependency)
+        visiting.remove(note_id)
+        visited.add(note_id)
+        included[note_id] = note
+        if len(included) > MAX_PLAN:
+            raise CliError(f"dependency plan exceeds {MAX_PLAN} notes; narrow the tag filter")
+
+    _validate_dependency_closure(selected, by_id)
+    for note in selected:
+        include(note)
+
+    indegree = {note_id: 0 for note_id in included}
+    dependents: dict[str, list[str]] = {note_id: [] for note_id in included}
+    for note_id, note in included.items():
+        for dependency_id in note.get("dependsOn", []):
+            if dependency_id not in included:
+                continue
+            indegree[note_id] += 1
+            dependents[dependency_id].append(note_id)
+    sort_key = lambda note_id: (_parse_instant(included[note_id]["createdAt"]), note_id)
+    available = sorted((note_id for note_id, count in indegree.items() if count == 0), key=sort_key)
+    ordered = []
+    while available:
+        note_id = available.pop(0)
+        ordered.append(included[note_id])
+        for dependent_id in dependents[note_id]:
+            indegree[dependent_id] -= 1
+            if indegree[dependent_id] == 0:
+                available.append(dependent_id)
+        available.sort(key=sort_key)
+    if len(ordered) != len(included):
+        raise CliError("dependency cycle prevents topological ordering")
+    ready = []
+    blocked = []
+    for note in ordered:
+        pending = []
+        terminal = []
+        for dependency_id in note.get("dependsOn", []):
+            dependency = by_id[dependency_id]
+            if dependency["status"] in ACTIONABLE:
+                pending.append(dependency_id)
+            elif dependency["status"] != "resolved":
+                terminal.append({"id": dependency_id, "status": dependency["status"]})
+        item = _metadata(note)
+        if not pending and not terminal:
+            ready.append(item)
+        else:
+            item["blockedBy"] = pending
+            item["terminalDependencies"] = terminal
+            blocked.append(item)
+    return {
+        "selected": len(selected),
+        "included": len(ordered),
+        "rejected_count": rejected,
+        "ordered": [_metadata(note) for note in ordered],
+        "ready": ready,
+        "blocked": blocked,
+    }
+
+
 def _path_for_id(notes_directory: Path, note_id: str) -> Path:
     if ID_PATTERN.fullmatch(note_id) is None:
         raise CliError(f"invalid review note id: {note_id}")
@@ -503,6 +657,20 @@ def _command_show(args: argparse.Namespace, notes_directory: Path) -> dict[str, 
 
 @contextmanager
 def _note_lock(notes_directory: Path, note_id: str):
+    if ID_PATTERN.fullmatch(note_id) is None:
+        raise CliError(f"invalid review note id: {note_id}")
+    with _named_lock(notes_directory, f"{note_id}.lock"):
+        yield
+
+
+@contextmanager
+def _store_lock(notes_directory: Path):
+    with _named_lock(notes_directory, "graph.lock"):
+        yield
+
+
+@contextmanager
+def _named_lock(notes_directory: Path, lock_name: str):
     lock_directory = notes_directory / ".locks"
     try:
         lock_directory.mkdir(mode=0o700)
@@ -513,7 +681,7 @@ def _note_lock(notes_directory: Path, note_id: str):
     if lock_directory.resolve() != lock_directory:
         raise CliError("review note lock directory escapes through a symlink")
 
-    lock_path = lock_directory / f"{note_id}.lock"
+    lock_path = lock_directory / lock_name
     flags = os.O_CREAT | os.O_RDWR
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
@@ -594,6 +762,28 @@ def _command_claim(args: argparse.Namespace, notes_directory: Path) -> dict[str,
         raise CliError(f"claim accepts at most {MAX_SHOW} note ids")
     if len(set(args.ids)) != len(args.ids):
         raise CliError("claim note ids must be unique")
+    with _store_lock(notes_directory):
+        return _claim_locked(args, notes_directory)
+
+
+def _claim_locked(args: argparse.Namespace, notes_directory: Path) -> dict[str, Any]:
+    admitted, _ = _scan(notes_directory)
+    by_id = {note["id"]: note for note in admitted}
+    selected = []
+    for note_id in args.ids:
+        note = by_id.get(note_id)
+        if note is None:
+            raise CliError(f"cannot claim missing or invalid review note {note_id}")
+        selected.append(note)
+    _validate_dependency_closure(selected, by_id)
+    for note in selected:
+        note_id = note["id"]
+        for dependency_id in note.get("dependsOn", []):
+            dependency = by_id.get(dependency_id)
+            if dependency is None:
+                raise CliError(f"missing dependency {dependency_id} required by {note_id}")
+            if dependency["status"] != "resolved":
+                raise CliError(f"unresolved dependency {dependency_id} blocks {note_id}")
 
     def claim(note: dict[str, Any]) -> None:
         if note["status"] not in {"open", "in_progress"}:
@@ -652,7 +842,8 @@ def _command_resolve(args: argparse.Namespace, notes_directory: Path) -> dict[st
         )
         note["resolution"] = resolution
 
-    changed = _atomic_transform(notes_directory, args.id, resolve)
+    with _store_lock(notes_directory):
+        changed = _atomic_transform(notes_directory, args.id, resolve)
     return {"updated": 1, "notes": [_metadata(changed)]}
 
 
@@ -669,10 +860,16 @@ def _parser() -> argparse.ArgumentParser:
     listing.add_argument("--path-prefix")
     listing.add_argument("--branch")
     listing.add_argument("--created-after")
+    listing.add_argument("--tag")
+    listing.add_argument("--tag-mode", choices=("all", "any"), default="all")
     listing.add_argument("--limit", type=int, default=20, choices=range(1, MAX_LIST + 1), metavar="1..100")
     listing.add_argument("--offset", type=int, default=0)
     listing.add_argument("--cursor")
     listing.add_argument("--group-by-file", action="store_true")
+
+    plan = commands.add_parser("plan", help="build a bounded dependency-aware actionable plan")
+    plan.add_argument("--tag")
+    plan.add_argument("--tag-mode", choices=("all", "any"), default="all")
 
     show = commands.add_parser("show", help="return complete admitted notes for selected ids")
     show.add_argument("ids", nargs="+")
@@ -697,6 +894,7 @@ def main() -> int:
         handlers = {
             "stats": _command_stats,
             "list": _command_list,
+            "plan": _command_plan,
             "show": _command_show,
             "claim": _command_claim,
             "resolve": _command_resolve,

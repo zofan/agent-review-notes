@@ -30,6 +30,8 @@ class ReviewNoteDetailsTest {
             anchor = NoteAnchor("selected", "before", "after", "run"),
             createdAt = "2026-08-20T10:00:00Z",
             resolution = NoteResolution("done", "2026-08-22T11:00:00Z", null),
+            tags = listOf("component:sage", "flow:mcp"),
+            dependsOn = listOf("123e4567-e89b-42d3-a456-426614174000"),
         )
 
         val rows = ReviewNoteDetails.rows(note).associate { it.label to it.value }
@@ -44,6 +46,8 @@ class ReviewNoteDetailsTest {
         assertEquals("2026-08-22T11:00:00Z", rows["Resolved"])
         assertEquals("bug", rows["Type"])
         assertEquals("resolved", rows["Status"])
+        assertEquals("component:sage, flow:mcp", rows["Tags"])
+        assertEquals("123e4567-e89b-42d3-a456-426614174000", rows["Depends on"])
     }
 
     @Test

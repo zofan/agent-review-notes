@@ -8,12 +8,14 @@ import kotlin.test.assertTrue
 
 class AddReviewNoteActionContractTest {
     @Test
-    fun `file notes use schema selected by review kind`() {
+    fun `new file notes use workflow schema and dialog fields`() {
         val source = Files.readString(
             Path.of("src/main/kotlin/ai/agentreviewnotes/action/AddReviewNoteAction.kt"),
         )
 
-        assertTrue(source.contains("schema = kind.schema"))
+        assertTrue(source.contains("schema = REVIEW_NOTE_SCHEMA_V3"))
+        assertTrue(source.contains("tags = tags"))
+        assertTrue(source.contains("dependsOn = dependsOn"))
     }
 
     @Test

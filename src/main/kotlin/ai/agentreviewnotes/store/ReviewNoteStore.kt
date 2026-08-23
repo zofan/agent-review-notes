@@ -1,6 +1,7 @@
 package ai.agentreviewnotes.store
 
 import ai.agentreviewnotes.model.ReviewKind
+import ai.agentreviewnotes.model.ReviewNoteDependencyGraph
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
 import com.intellij.openapi.Disposable
@@ -43,8 +44,12 @@ class ReviewNoteStore(private val project: Project) {
         CompletableFuture.runAsync(
             {
                 ioLock.withLock {
-                    writeNew(note)
-                    loadAndCache()
+                    val directory = requireNotNull(notesDirectory(create = true))
+                    ReviewNoteStoreLock.withLock(directory) {
+                        ReviewNoteDependencyGraph.validate(load() + note)
+                        writeNew(note)
+                        loadAndCache()
+                    }
                 }
             },
             executor,
@@ -57,8 +62,13 @@ class ReviewNoteStore(private val project: Project) {
         return CompletableFuture.runAsync(
             {
                 ioLock.withLock {
-                    mergeStatus(id, status)
-                    loadAndCache()
+                    val directory = requireNotNull(notesDirectory(create = false)) {
+                        "Каталог заметок не существует"
+                    }
+                    ReviewNoteStoreLock.withLock(directory) {
+                        mergeStatus(id, status)
+                        loadAndCache()
+                    }
                 }
             },
             executor,
@@ -86,7 +96,33 @@ class ReviewNoteStore(private val project: Project) {
         }
     }
 
+    fun updateAsync(
+        expected: ReviewNote,
+        kind: ReviewKind,
+        status: ReviewStatus,
+        message: String,
+        tags: List<String>,
+        dependsOn: List<String>,
+    ): CompletableFuture<Void> = mutateAsync {
+        mergeFile(expected.id) { content ->
+            val updatedContent = ReviewNoteJson.mergeEditable(
+                content,
+                expected,
+                kind,
+                status,
+                message,
+                tags,
+                dependsOn,
+            )
+            val updated = ReviewNoteJson.decode(updatedContent, expected.id)
+            ReviewNoteDependencyGraph.validate(load().filterNot { it.id == expected.id } + updated)
+            updatedContent
+        }
+    }
+
     fun deleteAsync(id: String): CompletableFuture<Void> = mutateAsync {
+        val dependents = load().filter { id in it.dependsOn }.map(ReviewNote::id)
+        require(dependents.isEmpty()) { "The review note is required by: ${dependents.joinToString()}" }
         val directory = requireNotNull(notesDirectory(create = false)) { "Каталог заметок не существует" }
         ReviewNoteFileLock.withLock(directory, id) {
             val target = notePath(directory, id)
@@ -170,8 +206,13 @@ class ReviewNoteStore(private val project: Project) {
         CompletableFuture.runAsync(
             {
                 ioLock.withLock {
-                    mutation()
-                    loadAndCache()
+                    val directory = requireNotNull(notesDirectory(create = false)) {
+                        "Каталог заметок не существует"
+                    }
+                    ReviewNoteStoreLock.withLock(directory) {
+                        mutation()
+                        loadAndCache()
+                    }
                 }
             },
             executor,

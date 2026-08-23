@@ -2,6 +2,7 @@ package ai.agentreviewnotes.model
 
 const val REVIEW_NOTE_SCHEMA = "agent.review.note.v1"
 const val REVIEW_NOTE_SCHEMA_V2 = "agent.review.note.v2"
+const val REVIEW_NOTE_SCHEMA_V3 = "agent.review.note.v3"
 
 enum class ReviewKind(val wireValue: String, val title: String, val schema: String = REVIEW_NOTE_SCHEMA) {
     BLOCKER("blocker", "Blocker"),
@@ -35,6 +36,8 @@ data class ReviewNote(
     val anchor: NoteAnchor,
     val createdAt: String,
     val resolution: NoteResolution? = null,
+    val tags: List<String> = emptyList(),
+    val dependsOn: List<String> = emptyList(),
 )
 
 data class NoteLocation(

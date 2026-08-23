@@ -43,12 +43,14 @@ class AddDirectoryReviewNoteAction : AnAction() {
         val repositoryHead = repository?.currentRevision
         val repositoryBranch = repository?.currentBranchName
         val requestedPath = Path.of(directory.path)
-        val dialog = ReviewNoteDialog(project)
+        val store = project.service<ReviewNoteStore>()
+        val dialog = ReviewNoteDialog(project, availableParents = store.cachedList())
         if (!dialog.showAndGet()) return
 
-        val store = project.service<ReviewNoteStore>()
         val kind = dialog.kind
         val message = dialog.message
+        val tags = dialog.tags
+        val dependsOn = dialog.dependsOn
         CompletableFuture.supplyAsync(
             {
                 val git = ReviewNoteGitLocationResolver.resolve(
@@ -73,6 +75,8 @@ class AddDirectoryReviewNoteAction : AnAction() {
                     message = message,
                     id = UUID.randomUUID().toString(),
                     createdAt = Instant.now().toString(),
+                    tags = tags,
+                    dependsOn = dependsOn,
                 )
             },
             AppExecutorUtil.getAppExecutorService(),

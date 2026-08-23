@@ -1,9 +1,12 @@
 package ai.agentreviewnotes.store
 
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V3
+import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewStatus
 import com.google.gson.JsonParser
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
 
 class ReviewNoteJsonTest {
@@ -33,6 +36,75 @@ class ReviewNoteJsonTest {
 
         assertEquals("agent.review.note.v2", decoded.schema)
         assertEquals("feature", decoded.kind)
+    }
+
+    @Test
+    fun `schema v3 читает теги и зависимости`() {
+        val root = JsonParser.parseString(validJson()).asJsonObject
+        root.addProperty("schema", "agent.review.note.v3")
+        root.add("tags", JsonParser.parseString("""["component:sage","flow:mcp"]"""))
+        root.add("dependsOn", JsonParser.parseString("""["b23e4567-e89b-42d3-a456-426614174000"]"""))
+
+        val decoded = ReviewNoteJson.decode(root.toString(), NOTE_ID)
+
+        assertEquals(listOf("component:sage", "flow:mcp"), decoded.tags)
+        assertEquals(listOf("b23e4567-e89b-42d3-a456-426614174000"), decoded.dependsOn)
+    }
+
+    @Test
+    fun `optimistic merge отклоняет заметку изменённую после открытия диалога`() {
+        val root = JsonParser.parseString(validJson()).asJsonObject
+        root.addProperty("schema", REVIEW_NOTE_SCHEMA_V3)
+        root.add("tags", JsonParser.parseString("[]"))
+        root.add("dependsOn", JsonParser.parseString("[]"))
+        val original = root.toString()
+        val expected = ReviewNoteJson.decode(original, NOTE_ID)
+        val externallyChanged = original.replace("Проверить обновление", "Внешнее изменение")
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            ReviewNoteJson.mergeEditable(
+                externallyChanged,
+                expected,
+                ReviewKind.BUG,
+                ReviewStatus.OPEN,
+                "Dialog edit",
+                emptyList(),
+                emptyList(),
+            )
+        }
+
+        assertContains(error.message.orEmpty(), "changed since")
+    }
+
+    @Test
+    fun `редактирование workflow полей повышает schema до v3 и сохраняет расширения`() {
+        val updated = ReviewNoteJson.mergeEditable(
+            content = validJson(),
+            expectedId = NOTE_ID,
+            kind = "bug",
+            status = ReviewStatus.OPEN,
+            message = "Проверить обновление",
+            tags = listOf("component:sage", "flow:mcp"),
+            dependsOn = listOf("b23e4567-e89b-42d3-a456-426614174000"),
+        )
+        val root = JsonParser.parseString(updated).asJsonObject
+
+        assertEquals("agent.review.note.v3", root.get("schema").asString)
+        assertEquals(2, root.getAsJsonArray("tags").size())
+        assertEquals(1, root.getAsJsonArray("dependsOn").size())
+        assertEquals("keep-me", root.getAsJsonObject("agentExtension").get("value").asString)
+    }
+
+    @Test
+    fun `schema v3 отклоняет неупорядоченные теги и self dependency`() {
+        val root = JsonParser.parseString(validJson()).asJsonObject
+        root.addProperty("schema", "agent.review.note.v3")
+        root.add("tags", JsonParser.parseString("""["flow:mcp","component:sage"]"""))
+        root.add("dependsOn", JsonParser.parseString("""["$NOTE_ID"]"""))
+
+        assertFailsWith<IllegalArgumentException> {
+            ReviewNoteJson.decode(root.toString(), NOTE_ID)
+        }
     }
 
     @Test

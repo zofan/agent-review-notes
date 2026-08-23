@@ -31,6 +31,8 @@ internal object ReviewNoteDetails {
             ReviewNoteDetailRow("Resolved", note.resolution?.resolvedAt ?: "—"),
             ReviewNoteDetailRow("Type", note.kind),
             ReviewNoteDetailRow("Status", note.status),
+            ReviewNoteDetailRow("Tags", note.tags.joinToString().ifBlank { "—" }),
+            ReviewNoteDetailRow("Depends on", note.dependsOn.joinToString().ifBlank { "—" }),
             ReviewNoteDetailRow("Note", note.message),
         )
     }

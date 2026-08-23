@@ -12,11 +12,11 @@ class ReviewNoteListPresentationTest {
     @Test
     fun `row contains only requested compact fields and truncates message`() {
         val message = "  A long review note   with whitespace " + "x".repeat(140) + " 😀 tail"
-        val note = note(message = message)
+        val note = note(message = message, tags = listOf("component:sage", "flow:mcp"))
 
         val row = ReviewNoteListPresentation.row(note)
 
-        assertEquals("Bug · in progress · feature/symlinks · main.go:27", row.prefix)
+        assertEquals("Bug · in progress · feature/symlinks · main.go:27 · component:sage,flow:mcp", row.prefix)
         assertTrue(row.messagePreview.endsWith("…"))
         assertTrue(row.messagePreview.codePointCount(0, row.messagePreview.length) <= 100)
         assertEquals("${row.prefix} — ${row.messagePreview}", row.text)
@@ -52,6 +52,7 @@ class ReviewNoteListPresentationTest {
         target: String? = null,
         branch: String? = "feature/symlinks",
         message: String,
+        tags: List<String> = emptyList(),
     ) = ReviewNote(
         id = "note-1",
         status = "in_progress",
@@ -72,5 +73,6 @@ class ReviewNoteListPresentationTest {
         ),
         anchor = NoteAnchor("x", "", "", "HandleMessage"),
         createdAt = "2026-08-23T00:00:00Z",
+        tags = tags,
     )
 }

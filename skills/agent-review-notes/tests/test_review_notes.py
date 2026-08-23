@@ -1,10 +1,12 @@
 import argparse
+import fcntl
 import importlib.util
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -22,9 +24,11 @@ def note(
     kind: str = "bug",
     message: str = "Fix the bug",
     schema: str = "agent.review.note.v1",
+    tags: list[str] | None = None,
+    depends_on: list[str] | None = None,
 ) -> dict:
     note_id = str(uuid.uuid4())
-    return {
+    value = {
         "schema": schema,
         "id": note_id,
         "status": status,
@@ -48,6 +52,11 @@ def note(
         "resolution": None,
         "extension": {"preserve": True},
     }
+    if tags is not None:
+        value["tags"] = tags
+    if depends_on is not None:
+        value["dependsOn"] = depends_on
+    return value
 
 
 class ReviewNotesCliTest(unittest.TestCase):
@@ -106,6 +115,36 @@ class ReviewNotesCliTest(unittest.TestCase):
         self.assertEqual({"feature": 1}, result["by_kind"])
         self.assertEqual(1, result["rejected_count"])
 
+    def test_v3_admits_normalized_tags_and_dependencies(self) -> None:
+        parent = note("resolved", schema="agent.review.note.v3", tags=["component:sage"], depends_on=[])
+        child = note(
+            "open",
+            schema="agent.review.note.v3",
+            tags=["component:sage", "flow:mcp"],
+            depends_on=[parent["id"]],
+        )
+        self.write_note(parent)
+        self.write_note(child)
+
+        result = self.run_cli("show", child["id"])
+
+        self.assertEqual(["component:sage", "flow:mcp"], result["notes"][0]["tags"])
+        self.assertEqual([parent["id"]], result["notes"][0]["dependsOn"])
+
+    def test_v3_rejects_duplicate_or_invalid_tags_and_dependency_ids(self) -> None:
+        invalid_values = (
+            note("open", schema="agent.review.note.v3", tags=["sage", "sage"], depends_on=[]),
+            note("open", schema="agent.review.note.v3", tags=["Sage"], depends_on=[]),
+            note("open", schema="agent.review.note.v3", tags=[], depends_on=["not-a-uuid"]),
+        )
+        for value in invalid_values:
+            self.write_note(value)
+
+        result = self.run_cli("stats")
+
+        self.assertEqual(0, result["total"])
+        self.assertEqual(3, result["rejected_count"])
+
     def test_list_returns_bounded_actionable_metadata_without_note_bodies(self) -> None:
         open_note = note("open", message="x" * 300)
         resolved_note = note("resolved", path="src/done.py")
@@ -143,6 +182,130 @@ class ReviewNotesCliTest(unittest.TestCase):
         self.assertEqual(1, next_page["returned"])
         self.assertIsNone(next_page["next_offset"])
         self.assertNotEqual(page["notes"][0]["id"], next_page["notes"][0]["id"])
+
+    def test_list_filters_tags_with_any_and_all_semantics(self) -> None:
+        sage = note("open", schema="agent.review.note.v3", tags=["component:sage"], depends_on=[])
+        mcp = note(
+            "open",
+            schema="agent.review.note.v3",
+            tags=["component:sage", "flow:mcp"],
+            depends_on=[],
+        )
+        other = note("open", schema="agent.review.note.v3", tags=["component:trainer"], depends_on=[])
+        for value in (sage, mcp, other):
+            self.write_note(value)
+
+        any_result = self.run_cli("list", "--tag", "component:sage,component:trainer", "--tag-mode", "any")
+        all_result = self.run_cli("list", "--tag", "component:sage,flow:mcp", "--tag-mode", "all")
+
+        self.assertEqual(3, any_result["total"])
+        self.assertEqual([mcp["id"]], [item["id"] for item in all_result["notes"]])
+        self.assertEqual(["component:sage", "flow:mcp"], all_result["notes"][0]["tags"])
+
+    def test_plan_includes_transitive_dependencies_and_orders_them_before_children(self) -> None:
+        root = note("open", schema="agent.review.note.v3", tags=["foundation"], depends_on=[])
+        middle = note("open", schema="agent.review.note.v3", tags=["internal"], depends_on=[root["id"]])
+        child = note("open", schema="agent.review.note.v3", tags=["release"], depends_on=[middle["id"]])
+        root["createdAt"] = "2026-08-23T03:00:00Z"
+        middle["createdAt"] = "2026-08-23T02:00:00Z"
+        child["createdAt"] = "2026-08-23T01:00:00Z"
+        for value in (child, middle, root):
+            self.write_note(value)
+
+        result = self.run_cli("plan", "--tag", "release")
+
+        self.assertEqual([root["id"], middle["id"], child["id"]], [item["id"] for item in result["ordered"]])
+        self.assertEqual([root["id"]], [item["id"] for item in result["ready"]])
+        self.assertEqual(2, len(result["blocked"]))
+
+    def test_plan_uses_creation_time_for_independent_ready_notes(self) -> None:
+        newer = note("open", schema="agent.review.note.v3", tags=["internal"], depends_on=[])
+        older = note("open", schema="agent.review.note.v3", tags=["internal"], depends_on=[])
+        child = note(
+            "open",
+            schema="agent.review.note.v3",
+            tags=["release"],
+            depends_on=[newer["id"], older["id"]],
+        )
+        newer["createdAt"] = "2026-08-23T02:00:00Z"
+        older["createdAt"] = "2026-08-23T01:00:00Z"
+        child["createdAt"] = "2026-08-23T00:00:00Z"
+        self.write_note(newer)
+        self.write_note(older)
+        self.write_note(child)
+
+        result = self.run_cli("plan", "--tag", "release")
+
+        self.assertEqual(
+            [older["id"], newer["id"], child["id"]],
+            [item["id"] for item in result["ordered"]],
+        )
+
+    def test_plan_rejects_cycles_and_missing_dependencies(self) -> None:
+        first = note("open", schema="agent.review.note.v3", tags=["cycle"], depends_on=[])
+        second = note("open", schema="agent.review.note.v3", tags=["cycle"], depends_on=[first["id"]])
+        first["dependsOn"] = [second["id"]]
+        self.write_note(first)
+        self.write_note(second)
+
+        cycle = self.run_cli("plan", "--tag", "cycle", expect=2)
+        self.assertIn("cycle", cycle["error"])
+
+        (self.notes / f"{first['id']}.json").unlink()
+        missing = self.run_cli("plan", "--tag", "cycle", expect=2)
+        self.assertIn("missing dependency", missing["error"])
+
+    def test_plan_rejects_cycle_through_resolved_dependency(self) -> None:
+        parent = note("resolved", schema="agent.review.note.v3", tags=["internal"], depends_on=[])
+        child = note("open", schema="agent.review.note.v3", tags=["release"], depends_on=[parent["id"]])
+        parent["dependsOn"] = [child["id"]]
+        parent["resolution"] = {
+            "summary": "already done",
+            "resolvedAt": "2026-08-23T00:10:00Z",
+            "fileSha256": None,
+        }
+        self.write_note(parent)
+        self.write_note(child)
+
+        result = self.run_cli("plan", "--tag", "release", expect=2)
+
+        self.assertIn("dependency cycle", result["error"])
+        claim = self.run_cli("claim", child["id"], expect=2)
+        self.assertIn("dependency cycle", claim["error"])
+
+    def test_claim_refuses_note_until_every_dependency_is_resolved(self) -> None:
+        parent = note("open", schema="agent.review.note.v3", tags=["chain"], depends_on=[])
+        child = note("open", schema="agent.review.note.v3", tags=["chain"], depends_on=[parent["id"]])
+        self.write_note(parent)
+        self.write_note(child)
+
+        blocked = self.run_cli("claim", child["id"], expect=2)
+        self.assertIn("unresolved dependency", blocked["error"])
+
+        self.run_cli("resolve", parent["id"], "--summary", "foundation complete")
+        claimed = self.run_cli("claim", child["id"])
+        self.assertEqual("in_progress", claimed["notes"][0]["status"])
+
+    def test_claim_waits_for_shared_store_lock_before_dependency_check(self) -> None:
+        child = note("open", schema="agent.review.note.v3", tags=["lock"], depends_on=[])
+        self.write_note(child)
+        lock_directory = self.notes / ".locks"
+        lock_directory.mkdir()
+        lock_path = lock_directory / "graph.lock"
+        with lock_path.open("w") as lock_file:
+            fcntl.lockf(lock_file.fileno(), fcntl.LOCK_EX)
+            process = subprocess.Popen(
+                [sys.executable, str(SCRIPT), "--project", str(self.project), "claim", child["id"]],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            time.sleep(0.2)
+            self.assertIsNone(process.poll(), "claim bypassed the shared graph lock")
+            fcntl.lockf(lock_file.fileno(), fcntl.LOCK_UN)
+        stdout, stderr = process.communicate(timeout=5)
+        self.assertEqual(0, process.returncode, stderr)
+        self.assertEqual("in_progress", json.loads(stdout)["notes"][0]["status"])
 
     def test_stats_aggregates_metadata_without_note_bodies(self) -> None:
         self.write_note(note("open"))

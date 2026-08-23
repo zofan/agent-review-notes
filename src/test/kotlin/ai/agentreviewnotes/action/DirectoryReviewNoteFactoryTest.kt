@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 
 class DirectoryReviewNoteFactoryTest {
     @Test
-    fun `feature factory создает schema v2`() {
+    fun `feature factory создает schema v3 с workflow полями`() {
         val note = DirectoryReviewNoteFactory.create(
             workspacePath = "services/api",
             vcsRoot = "services/api",
@@ -20,9 +20,13 @@ class DirectoryReviewNoteFactoryTest {
             message = "Добавить новый endpoint",
             id = "123e4567-e89b-42d3-a456-426614174000",
             createdAt = "2026-08-22T00:00:00Z",
+            tags = listOf("component:sage"),
+            dependsOn = listOf("b23e4567-e89b-42d3-a456-426614174000"),
         )
 
-        assertEquals("agent.review.note.v2", note.schema)
+        assertEquals("agent.review.note.v3", note.schema)
+        assertEquals(listOf("component:sage"), note.tags)
+        assertEquals(listOf("b23e4567-e89b-42d3-a456-426614174000"), note.dependsOn)
         assertEquals(note, ReviewNoteAdmission.validate(note))
     }
 
@@ -38,6 +42,8 @@ class DirectoryReviewNoteFactoryTest {
             message = "Переименовать каталог",
             id = "123e4567-e89b-42d3-a456-426614174000",
             createdAt = "2026-08-22T00:00:00Z",
+            tags = emptyList(),
+            dependsOn = emptyList(),
         )
 
         assertEquals(note, ReviewNoteAdmission.validate(note))

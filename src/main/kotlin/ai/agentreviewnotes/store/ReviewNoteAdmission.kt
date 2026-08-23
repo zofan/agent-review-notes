@@ -2,9 +2,11 @@ package ai.agentreviewnotes.store
 
 import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA
 import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V2
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V3
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
+import ai.agentreviewnotes.model.ReviewNoteWorkflow
 import java.nio.file.Path
 import java.time.Instant
 
@@ -35,12 +37,28 @@ internal object ReviewNoteAdmission {
         val allowedKinds = when (schema) {
             REVIEW_NOTE_SCHEMA -> v1ReviewKinds
             REVIEW_NOTE_SCHEMA_V2 -> v2ReviewKinds
+            REVIEW_NOTE_SCHEMA_V3 -> v2ReviewKinds
             else -> throw IllegalArgumentException("Неизвестная версия схемы")
         }
         require(isValidId(id)) { "Некорректный id заметки" }
         require(kind in allowedKinds) { "Некорректный тип заметки" }
         require(status in reviewStatuses) { "Некорректный статус заметки" }
         require(message.isNotBlank()) { "Пустой текст заметки" }
+        val tags = requireNotNull(note.tags) { "Отсутствуют tags заметки" }
+        val dependencies = requireNotNull(note.dependsOn) { "Отсутствуют dependsOn заметки" }
+        if (schema == REVIEW_NOTE_SCHEMA_V3) {
+            require(tags.size <= ReviewNoteWorkflow.MAX_TAGS && tags == tags.distinct().sorted()) {
+                "Теги должны быть уникальны и отсортированы"
+            }
+            require(tags.all(ReviewNoteWorkflow::isValidTag)) { "Некорректный тег заметки" }
+            require(dependencies.size <= ReviewNoteWorkflow.MAX_DEPENDENCIES && dependencies.size == dependencies.distinct().size) {
+                "Зависимости должны быть уникальны и ограничены"
+            }
+            require(dependencies.all(::isValidId)) { "Некорректный id зависимости" }
+            require(id !in dependencies) { "Заметка не может зависеть от себя" }
+        } else {
+            require(tags.isEmpty() && dependencies.isEmpty()) { "Tags и dependsOn требуют schema v3" }
+        }
         val isDirectory = location.target == "directory"
         require(location.target == null || isDirectory) { "Некорректная цель заметки" }
         if (isDirectory) {

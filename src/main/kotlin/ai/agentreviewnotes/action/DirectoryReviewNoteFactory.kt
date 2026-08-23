@@ -5,6 +5,7 @@ import ai.agentreviewnotes.model.NoteLocation
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V3
 
 internal object DirectoryReviewNoteFactory {
     fun create(
@@ -17,8 +18,10 @@ internal object DirectoryReviewNoteFactory {
         message: String,
         id: String,
         createdAt: String,
+        tags: List<String>,
+        dependsOn: List<String>,
     ): ReviewNote = ReviewNote(
-        schema = kind.schema,
+        schema = REVIEW_NOTE_SCHEMA_V3,
         id = id,
         status = ReviewStatus.OPEN.wireValue,
         kind = kind.wireValue,
@@ -38,5 +41,7 @@ internal object DirectoryReviewNoteFactory {
         ),
         anchor = NoteAnchor("", "", "", null),
         createdAt = createdAt,
+        tags = tags,
+        dependsOn = dependsOn,
     )
 }

@@ -24,7 +24,10 @@ class ReviewNoteDetailsService(private val project: Project) {
             ReviewNoteDetailsDialog(
                 project = project,
                 note = note,
-                onSave = { kind, status, message -> store.updateAsync(note.id, kind, status, message) },
+                availableParents = store.cachedList().filterNot { it.id == note.id },
+                onSave = { kind, status, message, tags, dependsOn ->
+                    store.updateAsync(note, kind, status, message, tags, dependsOn)
+                },
                 onDelete = { store.deleteAsync(note.id) },
             ).show()
         }

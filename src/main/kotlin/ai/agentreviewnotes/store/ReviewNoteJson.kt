@@ -2,6 +2,7 @@ package ai.agentreviewnotes.store
 
 import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA
 import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V2
+import ai.agentreviewnotes.model.REVIEW_NOTE_SCHEMA_V3
 import ai.agentreviewnotes.model.ReviewKind
 import ai.agentreviewnotes.model.ReviewNote
 import ai.agentreviewnotes.model.ReviewStatus
@@ -24,7 +25,12 @@ internal object ReviewNoteJson {
 
     fun encode(note: ReviewNote): String {
         ReviewNoteAdmission.validate(note)
-        return requireWithinLimit(gson.toJson(note))
+        val root = gson.toJsonTree(note).asJsonObject
+        if (note.schema != REVIEW_NOTE_SCHEMA_V3) {
+            root.remove("tags")
+            root.remove("dependsOn")
+        }
+        return requireWithinLimit(gson.toJson(root))
     }
 
     fun mergeStatus(content: String, expectedId: String, status: ReviewStatus): String {
@@ -46,6 +52,42 @@ internal object ReviewNoteJson {
         status: ReviewStatus,
         message: String,
     ): String = mergeEditableFields(content, expectedId, kind, status, message)
+
+    fun mergeEditable(
+        content: String,
+        expectedId: String,
+        kind: String,
+        status: ReviewStatus,
+        message: String,
+        tags: List<String>,
+        dependsOn: List<String>,
+    ): String {
+        val root = StrictJsonParser.parseObject(content)
+        val current = decode(root)
+        require(current.id == expectedId) { "Имя файла и id заметки не совпадают" }
+        root.addProperty("schema", REVIEW_NOTE_SCHEMA_V3)
+        root.addProperty("kind", kind)
+        root.addProperty("status", status.wireValue)
+        root.addProperty("message", message)
+        root.add("tags", gson.toJsonTree(tags))
+        root.add("dependsOn", gson.toJsonTree(dependsOn))
+        decode(root)
+        return requireWithinLimit(gson.toJson(root))
+    }
+
+    fun mergeEditable(
+        content: String,
+        expected: ReviewNote,
+        kind: ReviewKind,
+        status: ReviewStatus,
+        message: String,
+        tags: List<String>,
+        dependsOn: List<String>,
+    ): String {
+        val current = decode(content, expected.id)
+        require(current == expected) { "Review note changed since the edit dialog was opened" }
+        return mergeEditable(content, expected.id, kind.wireValue, status, message, tags, dependsOn)
+    }
 
     private fun mergeEditableFields(
         content: String,
@@ -69,12 +111,25 @@ internal object ReviewNoteJson {
 
     private fun decode(root: JsonObject): ReviewNote {
         validateShape(root)
-        return ReviewNoteAdmission.validate(gson.fromJson(root, ReviewNote::class.java))
+        val parsed = gson.fromJson(root, ReviewNote::class.java)
+        val compatible = if (parsed.schema == REVIEW_NOTE_SCHEMA_V3) {
+            parsed
+        } else {
+            parsed.copy(tags = emptyList(), dependsOn = emptyList())
+        }
+        return ReviewNoteAdmission.validate(compatible)
     }
 
     private fun validateShape(root: JsonObject) {
         listOf("schema", "id", "status", "kind", "message", "createdAt").forEach { name ->
             requireString(root, name)
+        }
+        val schema = root.get("schema").asString
+        if (schema == REVIEW_NOTE_SCHEMA_V3) {
+            requireStringArray(root, "tags")
+            requireStringArray(root, "dependsOn")
+        } else {
+            require(!root.has("tags") && !root.has("dependsOn")) { "Поля tags и dependsOn требуют schema v3" }
         }
 
         val location = requireObject(root, "location")
@@ -109,6 +164,13 @@ internal object ReviewNoteJson {
         require(value.isJsonNull || value.isJsonPrimitive && value.asJsonPrimitive.isString) {
             "Поле $name должно быть строкой или null"
         }
+    }
+
+    private fun requireStringArray(root: JsonObject, name: String) {
+        val value = root.get(name)
+        require(value != null && value.isJsonArray && value.asJsonArray.all { item ->
+            item.isJsonPrimitive && item.asJsonPrimitive.isString
+        }) { "Поле $name должно быть массивом строк" }
     }
 
     private fun requireInt(root: JsonObject, name: String) {
