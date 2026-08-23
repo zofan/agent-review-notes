@@ -1,72 +1,78 @@
 # Agent Review Notes
 
-Экспериментальный плагин GoLand для локальных замечаний к коду. Пользователь выделяет код или
-ставит каретку, пишет только текст замечания, а плагин сохраняет путь, диапазон, Git snapshot и
-контекст в открытом JSON-контракте для AI-агента.
+An experimental GoLand plugin for local code review comments. The user selects code or places the
+caret, writes only the comment text, and the plugin saves the path, range, Git snapshot, and context
+into an open JSON contract for an AI agent.
 
-## Возможности
+## Features
 
-Плагин поддерживает полный локальный цикл:
+The plugin supports a complete local workflow:
 
-1. создать замечание из editor selection/caret;
-2. сохранить его без изменения исходного файла;
-3. показать в tool window компактную строку `тип · статус · ветка · файл:строка — текст`, отфильтровать заметки по ветке и owning repository и обозначить тип собственной иконкой;
-4. показать компактный текст заметки над anchor без изменения исходника, открыть детали кликом по inlay и единой кнопкой `Edit` перевести Details в режим атомарного редактирования типа, статуса и текста независимо от текущего статуса, либо удалить заметку;
-5. открыть заметку под caret или пересекающим её selection через `Ctrl+Alt+Shift+R`, предложив chooser при пересечениях;
-6. пережить внешнее изменение JSON и кода;
-7. либо точно перепривязать замечание, либо пометить его как требующее ручной привязки.
-8. назначить нормализованные теги и зависимости от других заметок;
-9. выбрать тематическую очередь по тегам и построить безопасный порядок выполнения через встроенный skill.
+1. create a comment from editor selection/caret;
+2. save it without modifying the source file;
+3. show a compact `type · status · branch · file:line — text` row in the tool window, filter
+   comments by branch and owning repository, and mark the type with its own icon;
+4. show the compact comment text above the anchor without modifying the source, open details by
+   clicking the inlay, and with a single `Edit` button switch Details into atomic editing mode for
+   type, status, and text regardless of the current status, or delete the comment;
+5. open the comment under the caret or intersecting selection via `Ctrl+Alt+Shift+R`, offering a
+   chooser when there are intersections;
+6. survive external changes to the JSON and the code;
+7. either rebind the comment precisely or mark it as requiring manual binding;
+8. assign normalized tags and dependencies on other comments;
+9. select a thematic queue by tags and build a safe execution order via the built-in skill.
 
-Workspace-пути сохраняются в том виде, в котором они видны в проекте. Поэтому заметки можно
-создавать и открывать в зарегистрированных Git-репозиториях, подключённых внутрь мультирепы через
-симлинки, например `golang/handler`, при этом Git metadata относится к owning repository за симлинком.
-Произвольные симлинки наружу и вложенные выходы за canonical root owning repository отклоняются.
+Workspace paths are stored exactly as they appear in the project. Comments can therefore be created
+and opened in registered Git repositories mounted into a multirepo through symlinks, e.g.
+`golang/handler`, while the Git metadata belongs to the owning repository behind the symlink.
+Arbitrary symlinks pointing outside and nested escapes beyond the canonical root owning repository
+are rejected.
 
-## Локальные данные
+## Local data
 
-Заметки проекта хранятся вне Git в:
+Project comments are stored outside Git in:
 
 ```text
 <project>/.idea/agent-review-notes/notes/<id>.json
 ```
 
-Одна заметка соответствует одному JSON-файлу. Плагин читает контракты `agent.review.note.v1`,
-`agent.review.note.v2` и `agent.review.note.v3`: v2 добавляет тип `feature`, а v3 — массивы `tags` и
-`dependsOn` для тематической выборки и DAG-порядка выполнения. Существующие v1/v2-заметки остаются
-совместимыми без миграции. Плагин не использует сеть и не запускает AI-агентов.
+One comment corresponds to one JSON file. The plugin reads the `agent.review.note.v1`,
+`agent.review.note.v2`, and `agent.review.note.v3` contracts: v2 adds the `feature` type, and v3 adds
+the `tags` and `dependsOn` arrays for thematic selection and DAG execution order. Existing v1/v2
+comments remain compatible without migration. The plugin does not use the network and does not run AI
+agents.
 
-## Сборка
+## Build
 
-Gradle можно запустить на встроенном JBR GoLand. Java 21 нужна как compiler toolchain;
-Foojay resolver загружает её автоматически, если локального JDK 21 ещё нет:
+Gradle can be run on the bundled GoLand JBR. Java 21 is required as the compiler toolchain; the
+Foojay resolver downloads it automatically if there is no local JDK 21 yet:
 
 ```bash
 make check
 make build
 ```
 
-ZIP плагина появляется в `build/distributions/`.
+The plugin ZIP appears in `build/distributions/`.
 
-Основные команды:
+Main commands:
 
 ```bash
-make help           # список команд
-make test           # Kotlin- и Python-тесты
-make build          # ZIP без запуска тестов
+make help           # list of commands
+make test           # Kotlin and Python tests
+make build          # ZIP without running tests
 make verify         # Plugin Verifier
-make release        # чистая сборка со всеми release-gates
-make artifacts      # SHA-256 собранных ZIP
+make release        # clean build with all release gates
+make artifacts      # SHA-256 of the built ZIPs
 make run            # sandbox IDE
 ```
 
-По умолчанию Makefile использует JBR из JetBrains Toolbox:
-`$HOME/.local/share/JetBrains/Toolbox/apps/goland/jbr`. Другой JDK можно передать через `JAVA_HOME` или
-`GOLAND_JBR`.
+By default the Makefile uses the JBR from JetBrains Toolbox:
+`$HOME/.local/share/JetBrains/Toolbox/apps/goland/jbr`. A different JDK can be passed via `JAVA_HOME`
+or `GOLAND_JBR`.
 
-## Статус
+## Status
 
-Готовое локальное решение для GoLand. Перед публичным распространением рекомендуется ручная
-проверка установки и основных сценариев в поддерживаемой версии IDE.
+A ready local solution for GoLand. Manual verification of installation and the main scenarios in a
+supported IDE version is recommended before public distribution.
 
 ## TODO
