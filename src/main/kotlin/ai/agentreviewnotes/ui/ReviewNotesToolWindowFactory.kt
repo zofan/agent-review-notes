@@ -336,13 +336,15 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
             ?: return NavigationOutcome.Warning("The note target no longer exists")
         val file = LocalFileSystem.getInstance().findFileByNioFile(realPath)
             ?: return NavigationOutcome.Warning("The note file no longer exists")
-        val document = if (note.location.target == "directory") {
-            null
-        } else {
-            FileDocumentManager.getInstance().getDocument(file)
-                ?: return NavigationOutcome.Warning("The note file cannot be opened as text")
+        return ReviewNoteReadAction.compute {
+            val document = if (note.location.target == "directory") {
+                null
+            } else {
+                FileDocumentManager.getInstance().getDocument(file)
+                    ?: return@compute NavigationOutcome.Warning("The note file cannot be opened as text")
+            }
+            resolveModelNavigation(note, file, document)
         }
-        return ReviewNoteReadAction.compute { resolveModelNavigation(note, file, document) }
     }
 
     private fun resolveModelNavigation(

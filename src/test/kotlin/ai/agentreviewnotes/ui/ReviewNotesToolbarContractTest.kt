@@ -45,7 +45,7 @@ class ReviewNotesToolbarContractTest {
             .substringBefore("private fun applyNavigation")
         assertTrue(navigation.contains("ReviewNoteTargetBoundary.resolveCanonical"))
         assertTrue(navigation.indexOf("findFileByNioFile") < navigation.indexOf("ReviewNoteReadAction.compute"))
-        assertTrue(navigation.indexOf("getDocument(file)") < navigation.indexOf("ReviewNoteReadAction.compute"))
+        assertTrue(navigation.indexOf("ReviewNoteReadAction.compute") < navigation.indexOf("getDocument(file)"))
         val modelNavigation = navigation.substringAfter("private fun resolveModelNavigation")
         assertFalse(modelNavigation.contains("findFileByNioFile"))
         assertFalse(modelNavigation.contains("getDocument(file)"))
