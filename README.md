@@ -42,11 +42,27 @@ Gradle можно запустить на встроенном JBR GoLand. Java 
 Foojay resolver загружает её автоматически, если локального JDK 21 ещё нет:
 
 ```bash
-export JAVA_HOME="$HOME/.local/share/JetBrains/Toolbox/apps/goland/jbr"
-./gradlew test buildPlugin verifyPlugin
+make check
+make build
 ```
 
 ZIP плагина появляется в `build/distributions/`.
+
+Основные команды:
+
+```bash
+make help           # список команд
+make test           # Kotlin- и Python-тесты
+make build          # ZIP без запуска тестов
+make verify         # Plugin Verifier
+make release        # чистая сборка со всеми release-gates
+make artifacts      # SHA-256 собранных ZIP
+make run            # sandbox IDE
+```
+
+По умолчанию Makefile использует JBR из JetBrains Toolbox:
+`$HOME/.local/share/JetBrains/Toolbox/apps/goland/jbr`. Другой JDK можно передать через `JAVA_HOME` или
+`GOLAND_JBR`.
 
 ## Статус
 

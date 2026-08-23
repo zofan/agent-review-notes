@@ -26,13 +26,13 @@ class EnglishUiContractTest {
     }
 
     @Test
-    fun `action metadata is English while plugin description remains Russian`() {
+    fun `action metadata and plugin description are English`() {
         val root = Path.of(System.getProperty("user.dir"))
         val descriptor = Files.readString(root.resolve("src/main/resources/META-INF/plugin.xml"))
         val description = DESCRIPTION.find(descriptor)?.value.orEmpty()
         val withoutDescription = descriptor.replace(DESCRIPTION, "<description/>")
 
-        assertTrue(CYRILLIC.containsMatchIn(description), "Russian plugin description must be preserved")
+        assertFalse(CYRILLIC.containsMatchIn(description), "Plugin description must be English")
         assertFalse(CYRILLIC.containsMatchIn(withoutDescription), "Action metadata must be English")
     }
 
