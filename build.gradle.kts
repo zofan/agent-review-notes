@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "ai.agentreviewnotes"
-version = "0.1.14"
+version = "0.1.15"
 
 kotlin {
     compilerOptions {
@@ -16,11 +16,20 @@ kotlin {
     }
 }
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
 dependencies {
     testImplementation(kotlin("test"))
 
     intellijPlatform {
-        create("GO", "2026.1.1")
+        intellijIdea("2026.1.1")
+        bundledModule("com.intellij.modules.vcs")
+        bundledModule("intellij.platform.vcs.dvcs")
+        bundledModule("intellij.platform.vcs.dvcs.impl")
         bundledPlugin("Git4Idea")
     }
 }
@@ -33,7 +42,6 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild = "261"
-            untilBuild = "261.*"
         }
 
         vendor {
