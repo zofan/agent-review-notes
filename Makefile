@@ -3,9 +3,9 @@ SHELL := /usr/bin/bash
 .DEFAULT_GOAL := help
 
 GRADLEW ?= ./gradlew
-GOLAND_JBR ?= $(HOME)/.local/share/JetBrains/Toolbox/apps/goland/jbr
+IDE_JBR ?= $(HOME)/.local/share/JetBrains/Toolbox/apps/intellij-idea/jbr
 ifeq ($(strip $(JAVA_HOME)),)
-JAVA_HOME := $(GOLAND_JBR)
+JAVA_HOME := $(IDE_JBR)
 endif
 export JAVA_HOME
 export PATH := $(JAVA_HOME)/bin:$(PATH)
@@ -33,7 +33,7 @@ help: ## Показать доступные команды
 
 check-env: ## Проверить Gradle Wrapper и JBR
 	@test -x "$(GRADLEW)" || { printf 'Ошибка: не найден исполняемый %s\n' "$(GRADLEW)" >&2; exit 1; }
-	@test -x "$(JAVA_HOME)/bin/java" || { printf 'Ошибка: JBR не найден в %s; задайте JAVA_HOME или GOLAND_JBR\n' "$(JAVA_HOME)" >&2; exit 1; }
+	@test -x "$(JAVA_HOME)/bin/java" || { printf 'Ошибка: JBR не найден в %s; задайте JAVA_HOME или IDE_JBR\n' "$(JAVA_HOME)" >&2; exit 1; }
 	@"$(JAVA_HOME)/bin/java" -version
 
 # Основные команды намеренно не используют --rerun-tasks: обычный локальный цикл остаётся быстрым.

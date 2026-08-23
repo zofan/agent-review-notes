@@ -1,6 +1,6 @@
 # Agent Review Notes
 
-An experimental GoLand plugin for local code review comments. The user selects code or places the
+An experimental JetBrains IDE plugin for local code review comments. The user selects code or places the
 caret, writes only the comment text, and the plugin saves the path, range, Git snapshot, and context
 into an open JSON contract for an AI agent.
 
@@ -44,7 +44,7 @@ agents.
 
 ## Build
 
-Gradle can be run on the bundled GoLand JBR. Java 21 is required as the compiler toolchain; the
+Gradle can be run on a bundled JetBrains JBR. Java 21 is required as the compiler toolchain; the
 Foojay resolver downloads it automatically if there is no local JDK 21 yet:
 
 ```bash
@@ -67,12 +67,12 @@ make run            # sandbox IDE
 ```
 
 By default the Makefile uses the JBR from JetBrains Toolbox:
-`$HOME/.local/share/JetBrains/Toolbox/apps/goland/jbr`. A different JDK can be passed via `JAVA_HOME`
-or `GOLAND_JBR`.
+`$HOME/.local/share/JetBrains/Toolbox/apps/intellij-idea/jbr`. A different JDK can be passed via
+`JAVA_HOME` or `IDE_JBR`.
 
 ## Status
 
-A ready local solution for GoLand. Manual verification of installation and the main scenarios in a
-supported IDE version is recommended before public distribution.
+A ready local solution for JetBrains IDEs. Manual verification of installation and the main scenarios
+in a supported IDE version is recommended before public distribution.
 
 ## TODO
