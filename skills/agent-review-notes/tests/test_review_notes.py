@@ -131,6 +131,20 @@ class ReviewNotesCliTest(unittest.TestCase):
         self.assertEqual(["component:sage", "flow:mcp"], result["notes"][0]["tags"])
         self.assertEqual([parent["id"]], result["notes"][0]["dependsOn"])
 
+    def test_v3_admits_general_project_note(self) -> None:
+        value = note("open", schema="agent.review.note.v3", tags=[], depends_on=[])
+        value["location"].update({
+            "workspacePath": ".", "vcsRoot": None, "vcsPath": None, "head": None,
+            "fileSha256": "", "startOffset": 0, "endOffset": 0,
+            "startLine": 0, "endLine": 0, "branch": None, "target": "project",
+        })
+        value["anchor"] = {"selection": "", "prefix": "", "suffix": "", "symbol": None}
+        self.write_note(value)
+
+        result = self.run_cli("show", value["id"])
+
+        self.assertEqual("project", result["notes"][0]["location"]["target"])
+
     def test_v3_rejects_duplicate_or_invalid_tags_and_dependency_ids(self) -> None:
         invalid_values = (
             note("open", schema="agent.review.note.v3", tags=["sage", "sage"], depends_on=[]),

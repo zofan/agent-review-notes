@@ -2,11 +2,12 @@ package ai.agentreviewnotes.ui
 
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 
 class ReviewNotesHelpContentTest {
     @Test
     fun `help covers creation navigation filters storage and shortcut settings`() {
-        val help = ReviewNotesHelpContent.text
+        val help = ReviewNotesHelpContent.text(ReviewNotesHelpLanguage.ENGLISH)
 
         assertContains(help, "Ctrl+Alt+R")
         assertContains(help, "double-click")
@@ -28,5 +29,15 @@ class ReviewNotesHelpContentTest {
         assertContains(help, "Delete")
         assertContains(help, ".idea/agent-review-notes/notes")
         assertContains(help, "Settings | Keymap | Agent Review Notes")
+    }
+
+    @Test
+    fun `help is available in all requested languages`() {
+        assertEquals(6, ReviewNotesHelpLanguage.entries.size)
+        ReviewNotesHelpLanguage.entries.forEach { language ->
+            val help = ReviewNotesHelpContent.text(language)
+            assertContains(help, ".idea/agent-review-notes/notes")
+            assertContains(help, "Ctrl+Alt+R")
+        }
     }
 }

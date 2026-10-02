@@ -32,8 +32,8 @@
         </action>
         <action id="AgentReviewNotes.AddDirectoryNote"
                 class="ai.agentreviewnotes.action.AddDirectoryReviewNoteAction"
-                text="Add Review Note to Directory"
-                description="Create a local review note for the selected directory">
+                text="Add Review Note to File or Directory"
+                description="Create a local review note for the selected file or directory">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </action>
         <action id="AgentReviewNotes.OpenNoteAtCaret"

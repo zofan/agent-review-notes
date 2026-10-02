@@ -7,6 +7,8 @@ import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption.CREATE_NEW
+import java.nio.file.StandardOpenOption.APPEND
+import java.nio.file.StandardOpenOption.CREATE
 import java.nio.file.StandardOpenOption.WRITE
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFileAttributeView
@@ -78,6 +80,7 @@ internal object AgentSkillInstaller {
         if (Files.exists(directory, NOFOLLOW_LINKS)) {
             require(isSafeDirectory(directory)) { "Existing skill package is unsafe: $directory" }
             val completeMatch = packageMatchesExactly(directory, packageFiles)
+            if (completeMatch) ensureAgentsReference(root, target)
             return AgentSkillInstallResult(
                 target,
                 if (completeMatch) AgentSkillInstallStatus.ALREADY_INSTALLED else AgentSkillInstallStatus.CONFLICT,
@@ -108,7 +111,35 @@ internal object AgentSkillInstaller {
             }
             throw error
         }
+        ensureAgentsReference(root, target)
         return AgentSkillInstallResult(target, AgentSkillInstallStatus.INSTALLED)
+    }
+
+    private fun ensureAgentsReference(projectRoot: Path, skillFile: Path) {
+        val agents = projectRoot.resolve("AGENTS.md")
+        val relativeSkill = projectRoot.relativize(skillFile).toString().replace(File.separatorChar, '/')
+        val exactReference = "`$relativeSkill`"
+        if (Files.exists(agents, NOFOLLOW_LINKS)) {
+            require(Files.isRegularFile(agents, NOFOLLOW_LINKS) && !Files.isSymbolicLink(agents)) {
+                "AGENTS.md is not a safe regular file"
+            }
+            require(Files.size(agents) <= MAX_AGENTS_BYTES) { "AGENTS.md is too large to update safely" }
+            if (Files.readString(agents).contains(exactReference)) return
+        }
+        val existingNeedsNewline = Files.exists(agents, NOFOLLOW_LINKS) && Files.size(agents) > 0L &&
+            Files.newByteChannel(agents).use { channel ->
+                channel.position(channel.size() - 1)
+                val last = ByteBuffer.allocate(1)
+                channel.read(last)
+                last.array()[0] != '\n'.code.toByte()
+            }
+        val prefix = if (Files.exists(agents, NOFOLLOW_LINKS)) {
+            if (existingNeedsNewline) "\n\n" else "\n"
+        } else {
+            "# Agent instructions\n\n"
+        }
+        val reference = "${prefix}## Agent Review Notes\nUse the project skill at `$relativeSkill` when processing local review notes.\n"
+        Files.writeString(agents, reference, StandardCharsets.UTF_8, CREATE, APPEND, NOFOLLOW_LINKS)
     }
 
     private fun publishPackage(
@@ -247,4 +278,5 @@ internal object AgentSkillInstaller {
     }
 
     private val safeSubdirectories = setOf("assets", "references", "scripts", "templates")
+    private const val MAX_AGENTS_BYTES = 1_048_576L
 }

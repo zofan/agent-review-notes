@@ -60,8 +60,9 @@ internal object ReviewNoteAdmission {
             require(tags.isEmpty() && dependencies.isEmpty()) { "Tags и dependsOn требуют schema v3" }
         }
         val isDirectory = location.target == "directory"
-        require(location.target == null || isDirectory) { "Некорректная цель заметки" }
-        if (isDirectory) {
+        val isProject = location.target == "project"
+        require(location.target == null || isDirectory || isProject) { "Некорректная цель заметки" }
+        if (isDirectory || isProject) {
             require(fileSha256.isEmpty()) { "Для каталога не должно быть hash файла" }
             require(location.startOffset == 0 && location.endOffset == 0) { "Для каталога не должно быть offsets" }
             require(location.startLine == 0 && location.endLine == 0) { "Для каталога не должно быть строк" }
@@ -77,10 +78,16 @@ internal object ReviewNoteAdmission {
                 "Некорректные строки заметки"
             }
         }
-        require(isSafeWorkspacePath(workspacePath)) {
+        require(isProject && workspacePath == "." || !isProject && isSafeWorkspacePath(workspacePath)) {
             "Путь заметки выходит за пределы проекта"
         }
-        validateVcsLocation(location.vcsRoot, location.vcsPath, workspacePath, isDirectory)
+        if (isProject) {
+            require(location.vcsRoot == null && location.vcsPath == null && location.head == null && location.branch == null) {
+                "Для общей заметки не должно быть Git-location"
+            }
+        } else {
+            validateVcsLocation(location.vcsRoot, location.vcsPath, workspacePath, isDirectory)
+        }
         location.branch?.let { branch ->
             require(branch.isNotBlank()) { "Пустая Git-ветка заметки" }
             require(location.vcsRoot != null) { "Для Git-ветки отсутствует vcsRoot" }

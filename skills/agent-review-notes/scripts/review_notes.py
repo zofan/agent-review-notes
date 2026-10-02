@@ -235,7 +235,8 @@ def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
     if not isinstance(location, dict) or not isinstance(anchor, dict):
         raise ValueError("location and anchor must be objects")
     workspace_path = _required_string(location, "workspacePath")
-    if not _safe_workspace_path(workspace_path):
+    target = location.get("target")
+    if not _safe_workspace_path(workspace_path) and not (target == "project" and workspace_path == "."):
         raise ValueError("workspacePath escapes the project")
     vcs_root = _optional_string(location, "vcsRoot")
     vcs_path = _optional_string(location, "vcsPath")
@@ -251,7 +252,7 @@ def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
         _required_string(anchor, name)
     _optional_string(anchor, "symbol")
 
-    if location.get("target") == "directory":
+    if target in {"directory", "project"}:
         if (
             file_sha
             or any((start_offset, end_offset, start_line, end_line))
@@ -262,7 +263,7 @@ def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
         ):
             raise ValueError("directory note contains file coordinates or anchor")
     elif (
-        location.get("target") is not None
+        target is not None
         or SHA256_PATTERN.fullmatch(file_sha) is None
         or start_offset < 0
         or end_offset < start_offset
@@ -271,11 +272,14 @@ def _validate_note(note: dict[str, Any], expected_id: str) -> dict[str, Any]:
     ):
         raise ValueError("invalid file location")
 
-    if (vcs_root is None) != (vcs_path is None):
+    if target == "project":
+        if workspace_path != "." or any(value is not None for value in (vcs_root, vcs_path, location.get("head"), branch)):
+            raise ValueError("project note contains a path or VCS location")
+    elif (vcs_root is None) != (vcs_path is None):
         raise ValueError("incomplete VCS location")
     if vcs_root is not None and vcs_path is not None:
         if (vcs_root and not _safe_workspace_path(vcs_root)) or (
-            not _safe_workspace_path(vcs_path) and not (location.get("target") == "directory" and not vcs_path)
+            not _safe_workspace_path(vcs_path) and not (target == "directory" and not vcs_path)
         ):
             raise ValueError("invalid VCS location")
         reconstructed = PurePosixPath(vcs_root).joinpath(vcs_path).as_posix()

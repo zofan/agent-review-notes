@@ -46,7 +46,7 @@ internal object ReviewNoteEditorNotes {
 
         return project.service<ReviewNoteStore>().cachedList().filter { note ->
             note.status == ReviewStatus.OPEN.wireValue &&
-                note.location.target != "directory" &&
+                note.location.target == null &&
                 note.location.workspacePath == workspacePath &&
                 ReviewNoteBranch.isVisible(
                     noteBranch = note.location.branch,

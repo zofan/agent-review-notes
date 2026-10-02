@@ -1,5 +1,6 @@
 package ai.agentreviewnotes.ui
 
+import ai.agentreviewnotes.action.GeneralReviewNoteFactory
 import ai.agentreviewnotes.anchor.AnchorResult
 import ai.agentreviewnotes.anchor.ReviewNoteAnchor
 
@@ -41,7 +42,9 @@ import java.awt.Component
 import java.awt.FlowLayout
 import java.nio.file.Path
 import java.time.LocalDate
+import java.time.Instant
 import java.time.ZoneId
+import java.util.UUID
 import java.util.concurrent.CompletionException
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
@@ -143,12 +146,22 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
                 if (!updatingFacetFilters) render(store.cachedList())
             }
             add(ReviewNoteActionButtonFactory.createCompact(AllIcons.Actions.Refresh, "Refresh notes", ::refresh))
+            add(JButton("Add note").apply {
+                toolTipText = "Create a general project note"
+                accessibleContext.accessibleName = "Add general review note"
+                addActionListener { addGeneralNote() }
+            })
             add(kindFilter)
             add(dateFilter)
             add(statusFilter)
             add(branchFilter)
             add(repositoryFilter)
             add(installSkillButton)
+            add(JButton("Help").apply {
+                toolTipText = "Show Agent Review Notes usage help"
+                accessibleContext.accessibleName = "Agent Review Notes Help"
+                addActionListener { ReviewNotesHelpDialog(project).show() }
+            })
         }
     }
 
@@ -200,6 +213,22 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
                     )
                 }
             }
+        }
+    }
+
+    private fun addGeneralNote() {
+        val dialog = ReviewNoteDialog(project, availableParents = store.cachedList())
+        if (!dialog.showAndGet()) return
+        val note = GeneralReviewNoteFactory.create(
+            kind = dialog.kind,
+            message = dialog.message,
+            id = UUID.randomUUID().toString(),
+            createdAt = Instant.now().toString(),
+            tags = dialog.tags,
+            dependsOn = dialog.dependsOn,
+        )
+        store.createAsync(note).whenComplete { _, error ->
+            if (!isUnavailable() && error != null) showError("Failed to save the note", error)
         }
     }
 
@@ -320,6 +349,9 @@ private class ReviewNotesPanel(private val project: Project) : JPanel(BorderLayo
     }
 
     private fun resolveNavigation(note: ReviewNote, repositoryRoots: List<Path>): NavigationOutcome {
+        if (note.location.target == "project") {
+            return NavigationOutcome.Warning("General project notes do not have a navigation target")
+        }
         val basePath = project.basePath ?: return NavigationOutcome.Warning("The project has no local directory")
         val projectRoot = Path.of(basePath).normalize()
         val path = projectRoot.resolve(note.location.workspacePath).normalize()

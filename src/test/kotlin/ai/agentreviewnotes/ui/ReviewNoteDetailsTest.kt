@@ -44,6 +44,7 @@ class ReviewNoteDetailsTest {
         assertEquals("abc123", rows["Git snapshot"])
         assertEquals("2026-08-20T10:00:00Z", rows["Created"])
         assertEquals("2026-08-22T11:00:00Z", rows["Resolved"])
+        assertEquals("done", rows["Agent result"])
         assertEquals("bug", rows["Type"])
         assertEquals("resolved", rows["Status"])
         assertEquals("component:sage, flow:mcp", rows["Tags"])
@@ -68,6 +69,7 @@ class ReviewNoteDetailsTest {
         assertEquals("—", rows["Lines"])
         assertEquals("Outside Git", rows["Repository"])
         assertEquals("—", rows["Resolved"])
+        assertEquals("—", rows["Agent result"])
         assertEquals("context", rows["Snippet"])
     }
 }

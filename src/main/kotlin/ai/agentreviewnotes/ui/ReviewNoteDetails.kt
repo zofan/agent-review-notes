@@ -7,9 +7,14 @@ internal data class ReviewNoteDetailRow(val label: String, val value: String)
 internal object ReviewNoteDetails {
     fun rows(note: ReviewNote): List<ReviewNoteDetailRow> {
         val directory = note.location.target == "directory"
-        val target = if (directory) "Directory: ${note.location.workspacePath}" else "File: ${note.location.workspacePath}"
+        val project = note.location.target == "project"
+        val target = when {
+            project -> "General project note"
+            directory -> "Directory: ${note.location.workspacePath}"
+            else -> "File: ${note.location.workspacePath}"
+        }
         val lines = when {
-            directory -> "—"
+            directory || project -> "—"
             note.location.startLine == note.location.endLine -> note.location.startLine.toString()
             else -> "${note.location.startLine}–${note.location.endLine}"
         }
@@ -29,6 +34,7 @@ internal object ReviewNoteDetails {
             ReviewNoteDetailRow("Git snapshot", note.location.head ?: "—"),
             ReviewNoteDetailRow("Created", note.createdAt),
             ReviewNoteDetailRow("Resolved", note.resolution?.resolvedAt ?: "—"),
+            ReviewNoteDetailRow("Agent result", note.resolution?.summary ?: "—"),
             ReviewNoteDetailRow("Type", note.kind),
             ReviewNoteDetailRow("Status", note.status),
             ReviewNoteDetailRow("Tags", note.tags.joinToString().ifBlank { "—" }),

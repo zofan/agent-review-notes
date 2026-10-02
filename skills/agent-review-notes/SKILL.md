@@ -204,7 +204,9 @@ Required top-level fields:
   UUID note IDs, cannot contain the note itself, and forms an acyclic graph whose references must exist. v1/v2
   notes do not carry these reserved workflow fields.
 
-`location.workspacePath` is the lexical workspace path persisted exactly as projected in the project. It
+`location.workspacePath` is the lexical workspace path persisted exactly as projected in the project. General
+project notes use `location.target == "project"`, `workspacePath == "."`, empty file coordinates and anchor,
+and no VCS location; they intentionally have no navigation target. Otherwise it
 must be project-relative, must not be absolute or contain `..`, and must remain lexically inside the
 workspace. Its canonical target must either remain inside the real project root or be inside an admitted
 Git repository projection named by `vcsRoot`. In the plugin, authority comes from the IDE's registered Git

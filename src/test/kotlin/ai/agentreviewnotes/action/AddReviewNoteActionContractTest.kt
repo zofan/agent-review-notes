@@ -41,4 +41,17 @@ class AddReviewNoteActionContractTest {
         assertTrue(directoryAction.indexOf("val repository =") < directoryAction.indexOf("CompletableFuture.supplyAsync"))
         assertFalse(fileAction.substringAfter("private fun buildNote").contains("GitRepositoryManager"))
     }
+
+    @Test
+    fun `project view action supports files and validates target before opening dialog`() {
+        val source = Files.readString(
+            Path.of("src/main/kotlin/ai/agentreviewnotes/action/AddDirectoryReviewNoteAction.kt"),
+        )
+
+        assertTrue(source.contains("target?.isDirectory == true || target?.isDirectory == false"))
+        assertTrue(source.indexOf("prepareTarget(") < source.indexOf("ReviewNoteDialog("))
+        assertTrue(source.contains("FileReviewNoteFactory.create"))
+        assertTrue(source.indexOf("CompletableFuture.supplyAsync") < source.indexOf("prepareTarget("))
+        assertTrue(source.contains("ApplicationManager.getApplication().invokeLater"))
+    }
 }

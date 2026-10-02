@@ -19,7 +19,11 @@ internal object ReviewNoteListPresentation {
         val status = note.status.replace('_', ' ')
         val branch = note.location.branch ?: "—"
         val name = note.location.workspacePath.trimEnd('/').substringAfterLast('/')
-        val location = if (note.location.target == "directory") "$name/" else "$name:${note.location.startLine}"
+        val location = when (note.location.target) {
+            "project" -> "General"
+            "directory" -> "$name/"
+            else -> "$name:${note.location.startLine}"
+        }
         val tags = note.tags.joinToString(",")
         val prefix = listOf(type, status, branch, location, tags)
             .filter(String::isNotEmpty)

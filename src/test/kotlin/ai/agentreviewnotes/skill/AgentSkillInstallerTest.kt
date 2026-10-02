@@ -76,6 +76,40 @@ class AgentSkillInstallerTest {
     }
 
     @Test
+    fun `install adds one skill reference to existing AGENTS md`() = withTempProject { project ->
+        val agents = project.resolve("AGENTS.md")
+        agents.writeText("# Project instructions\n")
+
+        AgentSkillInstaller.install(project, "bundled skill")
+        AgentSkillInstaller.install(project, "bundled skill")
+
+        val content = Files.readString(agents)
+        assertTrue(content.contains("agent-review-notes"))
+        assertEquals(1, Regex("agent-review-notes").findAll(content).count())
+    }
+
+    @Test
+    fun `install creates AGENTS md with a short skill reference`() = withTempProject { project ->
+        AgentSkillInstaller.install(project, "bundled skill")
+
+        val content = Files.readString(project.resolve("AGENTS.md"))
+        assertTrue(content.contains("Agent Review Notes"))
+        assertTrue(content.contains(".agents/skills/agent-review-notes/SKILL.md"))
+    }
+
+    @Test
+    fun `unrelated skill name mention does not suppress the exact AGENTS reference`() = withTempProject { project ->
+        project.resolve("AGENTS.md").writeText("Do not use an obsolete agent-review-notes integration.\n")
+
+        AgentSkillInstaller.install(project, "bundled skill")
+
+        assertTrue(
+            Files.readString(project.resolve("AGENTS.md"))
+                .contains("`.agents/skills/agent-review-notes/SKILL.md`"),
+        )
+    }
+
+    @Test
     fun `package conflict does not create missing package directories`() = withTempProject { project ->
         val skill = project.resolve(".agents/skills/agent-review-notes").createDirectories()
         skill.resolve("SKILL.md").writeText("project customization")

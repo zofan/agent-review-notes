@@ -93,7 +93,7 @@ internal class ReviewNoteDetailsDialog(
         ReviewNoteDetails.rows(note)
             .filterNot { it.label in setOf("Type", "Status", "Tags", "Depends on", "Note") }
             .forEach { row ->
-                val component = if (row.label == "Snippet") {
+                val component = if (row.label == "Snippet" || row.label == "Agent result") {
                     JBScrollPane(noteArea(editable = false).apply { text = row.value })
                         .apply { preferredSize = Dimension(620, 90) }
                 } else {

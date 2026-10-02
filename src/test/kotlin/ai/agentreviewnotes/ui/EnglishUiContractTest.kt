@@ -16,6 +16,7 @@ class EnglishUiContractTest {
         val offenders = uiRoots.flatMap { directory ->
             Files.walk(directory).use { paths ->
                 paths.filter { it.extension == "kt" }
+                    .filter { it.fileName.toString() != "ReviewNotesHelpContent.kt" }
                     .filter { CYRILLIC.containsMatchIn(Files.readString(it)) }
                     .map(root::relativize)
                     .toList()

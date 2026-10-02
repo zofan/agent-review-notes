@@ -9,6 +9,46 @@ import kotlin.test.assertEquals
 
 class DirectoryReviewNoteFactoryTest {
     @Test
+    fun `general factory creates an admitted project note`() {
+        val note = GeneralReviewNoteFactory.create(
+            kind = ai.agentreviewnotes.model.ReviewKind.FEATURE,
+            message = "Track this task",
+            id = "123e4567-e89b-42d3-a456-426614174001",
+            createdAt = "2026-10-02T12:00:00Z",
+            tags = emptyList(),
+            dependsOn = emptyList(),
+        )
+
+        assertEquals(note, ReviewNoteAdmission.validate(note))
+        assertEquals("project", note.location.target)
+        assertEquals(".", note.location.workspacePath)
+    }
+
+    @Test
+    fun `file factory creates an admitted whole-file note`() {
+        val note = FileReviewNoteFactory.create(
+            workspacePath = "README.md",
+            vcsRoot = "",
+            vcsPath = "README.md",
+            head = "abc",
+            branch = "main",
+            text = "first line\nsecond line",
+            kind = ai.agentreviewnotes.model.ReviewKind.SUGGESTION,
+            message = "Clarify the introduction",
+            id = "123e4567-e89b-42d3-a456-426614174000",
+            createdAt = "2026-10-02T12:00:00Z",
+            tags = emptyList(),
+            dependsOn = emptyList(),
+        )
+
+        assertEquals(note, ReviewNoteAdmission.validate(note))
+        assertEquals(null, note.location.target)
+        assertEquals(1, note.location.startLine)
+        assertEquals(2, note.location.endLine)
+        assertEquals("first line\nsecond line", note.anchor.selection)
+    }
+
+    @Test
     fun `feature factory создает schema v3 с workflow полями`() {
         val note = DirectoryReviewNoteFactory.create(
             workspacePath = "services/api",

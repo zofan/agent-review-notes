@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "ai.agentreviewnotes"
-version = "0.1.17"
+version = "0.1.18"
 
 kotlin {
     compilerOptions {
